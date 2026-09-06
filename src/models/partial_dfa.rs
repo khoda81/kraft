@@ -88,10 +88,7 @@ impl StateCounts {
             .total
             .checked_add(1)
             .expect("partial DFA state observation count overflow");
-        match self
-            .counts
-            .binary_search_by_key(&byte, |&(value, _)| value)
-        {
+        match self.counts.binary_search_by_key(&byte, |&(value, _)| value) {
             Ok(index) => {
                 self.counts[index].1 = self.counts[index]
                     .1
@@ -418,9 +415,7 @@ impl Model<u8> for ExactPartialDfaMixture {
 }
 
 fn log_sum_exp(values: impl IntoIterator<Item = f64>) -> f64 {
-    values
-        .into_iter()
-        .fold(f64::NEG_INFINITY, log_add_exp)
+    values.into_iter().fold(f64::NEG_INFINITY, log_add_exp)
 }
 
 fn log_add_exp(a: f64, b: f64) -> f64 {
@@ -445,11 +440,7 @@ mod tests {
     #[test]
     fn one_state_class_is_exactly_the_byte_kt_unigram() {
         let data = b"KRAFT posterior";
-        let exact = evaluate(
-            &data[..],
-            &mut ExactPartialDfaMixture::new(1).unwrap(),
-        )
-        .unwrap();
+        let exact = evaluate(&data[..], &mut ExactPartialDfaMixture::new(1).unwrap()).unwrap();
         let kt = evaluate(&data[..], &mut Kt::default()).unwrap();
         assert!((exact.total_nats - kt.total_nats).abs() < 1e-12);
     }
