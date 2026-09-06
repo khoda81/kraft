@@ -1,5 +1,14 @@
 # Research log
 
+## 2026-09-06 — Predictive sufficient-state quotient
+
+**Observation:** the first N=2 discovery-quotient enwik8 run reached 1,032,192 exact components after only 22 bytes and required 864,578 components for epsilon=0.01 nat (1,013,545 for epsilon=0.001). The user noted that paths differing only by state naming should not be distinct hypotheses, motivating a stronger exact quotient.
+
+**Work:** added a predictive quotient that canonicalizes the complete future-relevant sufficient machine state under permutations of discovered state identities after every update. The current state is distinguished; historical state names, including which state was originally called A or B, are forgotten. Added a discovery control mode, generated-versus-merged child diagnostics, and exact tests requiring the two quotient modes to produce identical predictive probabilities and marginal evidence while predictive uses no more components. Brute-force permutation canonicalization is intentionally restricted to at most eight states for this oracle experiment.
+
+**Next:** rerun the N=2 prefix with `--quotient predictive` and compare exact component growth against the recorded discovery baseline. If the reduction is large, pursue a scalable graph/sufficient-state canonicalizer before approximate pruning.
+
+
 ## 2026-09-06 — Exact lazy partial-DFA posterior oracle
 
 **Goal:** measure whether a Bayesian posterior over byte-input DFA transition tables concentrates enough that a certified epsilon-KL truncation could make the otherwise exponential posterior practical.
