@@ -93,9 +93,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
                     "discovery" => DfaQuotient::Discovery,
                     "predictive" => DfaQuotient::Predictive,
                     _ => {
-                        return Err(invalid(
-                            "--quotient must be discovery or predictive",
-                        ));
+                        return Err(invalid("--quotient must be discovery or predictive"));
                     }
                 };
             } else if arg == "--limit" {
