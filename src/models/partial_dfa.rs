@@ -2,9 +2,11 @@
 //!
 //! For a fixed maximum state count N, every labeled transition
 //! (state, byte) -> destination has an independent uniform prior over N labels.
-//! State labels are canonicalized by first discovery: transitions to already
-//! discovered states remain separate, while all unused labels are aggregated
-//! into one new-state branch with the appropriate multiplicity.
+//! Unused labels are aggregated by first discovery. Optionally, KRAFT then takes
+//! a stronger exact quotient: after each observation, the entire future-relevant
+//! sufficient machine state is canonicalized under permutations of discovered
+//! state identities. Histories that differ only by irrelevant state names then
+//! share one posterior component.
 //!
 //! Each state predicts bytes with an integrated Dirichlet-1/2 categorical model.
 //! Unvisited transition-table entries remain marginalized rather than materialized.
@@ -21,6 +23,7 @@ use crate::{Distribution, Model};
 const ALPHABET_SIZE: f64 = 256.0;
 const JEFFREYS_ALPHA: f64 = 0.5;
 const JEFFREYS_TOTAL: f64 = ALPHABET_SIZE * JEFFREYS_ALPHA;
+const MAX_PREDICTIVE_CANONICAL_STATES: u16 = 8;
 
 /// Construction errors for an exact partial-DFA mixture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -29,6 +32,8 @@ pub enum PartialDfaError {
     ZeroStates,
     /// The compact edge representation supports at most 256 states.
     TooManyStates,
+    /// Brute-force predictive canonicalization is intentionally limited.
+    TooManyStatesForPredictiveQuotient,
 }
 
 impl fmt::Display for PartialDfaError {
@@ -36,6 +41,10 @@ impl fmt::Display for PartialDfaError {
         match self {
             Self::ZeroStates => write!(f, "a DFA mixture needs at least one state"),
             Self::TooManyStates => write!(f, "partial DFA oracle supports at most 256 states"),
+            Self::TooManyStatesForPredictiveQuotient => write!(
+                f,
+                "predictive DFA quotient currently supports at most {MAX_PREDICTIVE_CANONICAL_STATES} states"
+            ),
         }
     }
 }
@@ -64,7 +73,7 @@ impl Edge {
 }
 
 /// Sparse sufficient statistics for one state's Dirichlet-1/2 byte predictor.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct StateCounts {
     total: u32,
     counts: Vec<(u8, u32)>,
@@ -104,7 +113,7 @@ impl StateCounts {
 ///
 /// emissions.len() is the number of canonical states discovered so far.
 /// All not-yet-discovered state labels are symmetric and remain aggregated.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct Component {
     current_state: u16,
     edges: Vec<Edge>,
@@ -157,6 +166,94 @@ impl Component {
         }
         bytes
     }
+
+
+    /// Canonicalize the entire future-relevant sufficient state under arbitrary
+    /// permutations of discovered state identities.
+    ///
+    /// The historical start-state label is not part of the sufficient state for
+    /// future prediction. The current state is distinguished and always mapped to
+    /// canonical state zero; all remaining discovered states are permuted and the
+    /// lexicographically minimal representation is selected.
+    fn canonicalized_predictive(&self) -> Self {
+        let state_count = self.emissions.len();
+        if state_count <= 1 {
+            let mut canonical = self.clone();
+            canonical.current_state = 0;
+            return canonical;
+        }
+
+        let current = usize::from(self.current_state);
+        let mut remaining: Vec<u16> = (0..state_count as u16)
+            .filter(|&state| usize::from(state) != current)
+            .collect();
+        let mut best: Option<Self> = None;
+
+        visit_permutations(&mut remaining, 0, &mut |order| {
+            let mut mapping = vec![0_u16; state_count];
+            mapping[current] = 0;
+            for (index, &old_state) in order.iter().enumerate() {
+                mapping[usize::from(old_state)] = (index + 1) as u16;
+            }
+
+            let mut emissions = vec![StateCounts::default(); state_count];
+            for (old_state, counts) in self.emissions.iter().enumerate() {
+                emissions[usize::from(mapping[old_state])] = counts.clone();
+            }
+
+            let mut edges = Vec::with_capacity(self.edges.len());
+            for edge in &self.edges {
+                let old_source = usize::from(edge.key >> 8);
+                let byte = edge.key as u8;
+                let old_destination = usize::from(edge.destination);
+                edges.push(Edge::new(
+                    mapping[old_source],
+                    byte,
+                    mapping[old_destination],
+                ));
+            }
+            edges.sort_unstable();
+
+            let candidate = Self {
+                current_state: 0,
+                edges,
+                emissions,
+            };
+            match &best {
+                None => best = Some(candidate),
+                Some(existing) if candidate < *existing => best = Some(candidate),
+                Some(_) => {}
+            }
+        });
+
+        best.expect("at least one state permutation exists")
+    }
+}
+
+fn visit_permutations(
+    values: &mut [u16],
+    start: usize,
+    callback: &mut impl FnMut(&[u16]),
+) {
+    if start == values.len() {
+        callback(values);
+        return;
+    }
+    for index in start..values.len() {
+        values.swap(start, index);
+        visit_permutations(values, start + 1, callback);
+        values.swap(start, index);
+    }
+}
+}
+
+/// Exact state-label quotient used by the partial-DFA oracle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DfaQuotient {
+    /// Only aggregate labels that have never been discovered.
+    Discovery,
+    /// Also quotient the complete predictive sufficient state by state renaming.
+    Predictive,
 }
 
 /// Exact posterior diagnostics after an observed prefix.
@@ -184,6 +281,10 @@ pub struct PartialDfaDiagnostics {
     pub nonzero_emission_counts: usize,
     /// Approximate component payload bytes, excluding HashMap bucket overhead.
     pub payload_bytes_estimate: usize,
+    /// Number of children generated by the most recent observation before merging.
+    pub generated_children_last: usize,
+    /// Children eliminated by exact sufficient-state merging on the last update.
+    pub merged_children_last: usize,
 }
 
 /// Exact fixed-N Bayesian mixture over all labeled byte-input DFAs.
@@ -199,7 +300,9 @@ pub struct PartialDfaDiagnostics {
 #[derive(Debug, Clone)]
 pub struct ExactPartialDfaMixture {
     state_count: u16,
+    quotient: DfaQuotient,
     components: HashMap<Component, f64>,
+    generated_children_last: usize,
 }
 
 impl ExactPartialDfaMixture {
@@ -209,18 +312,37 @@ impl ExactPartialDfaMixture {
     /// an independent uniform prior over all state_count destination labels.
     /// All complete DFAs therefore have equal prior probability conditional on N.
     pub fn new(state_count: u16) -> Result<Self, PartialDfaError> {
+        Self::with_quotient(state_count, DfaQuotient::Predictive)
+    }
+
+    /// Create the oracle with an explicit exact state-label quotient.
+    pub fn with_quotient(
+        state_count: u16,
+        quotient: DfaQuotient,
+    ) -> Result<Self, PartialDfaError> {
         if state_count == 0 {
             return Err(PartialDfaError::ZeroStates);
         }
         if state_count > 256 {
             return Err(PartialDfaError::TooManyStates);
         }
+        if quotient == DfaQuotient::Predictive
+            && state_count > MAX_PREDICTIVE_CANONICAL_STATES
+        {
+            return Err(PartialDfaError::TooManyStatesForPredictiveQuotient);
+        }
         let mut components = HashMap::new();
         components.insert(Component::initial(), 0.0);
         Ok(Self {
             state_count,
+            quotient,
             components,
+            generated_children_last: 0,
         })
+    }
+
+    pub fn quotient(&self) -> DfaQuotient {
+        self.quotient
     }
 
     pub fn state_count(&self) -> u16 {
@@ -329,6 +451,10 @@ impl ExactPartialDfaMixture {
             assigned_transitions,
             nonzero_emission_counts,
             payload_bytes_estimate,
+            generated_children_last: self.generated_children_last,
+            merged_children_last: self
+                .generated_children_last
+                .saturating_sub(self.components.len()),
         }
     }
 
@@ -336,6 +462,7 @@ impl ExactPartialDfaMixture {
         let old_components = std::mem::take(&mut self.components);
         let mut next = HashMap::new();
         let ln_state_count = f64::from(self.state_count).ln();
+        let mut generated_children = 0_usize;
 
         for (mut component, ln_mass) in old_components {
             let source = component.current_state;
@@ -345,7 +472,8 @@ impl ExactPartialDfaMixture {
 
             if let Some(destination) = component.transition(source, byte) {
                 component.current_state = destination;
-                insert_log_mass(&mut next, component, ln_base_mass);
+                generated_children += 1;
+                self.insert_component(&mut next, component, ln_base_mass);
                 continue;
             }
 
@@ -355,7 +483,8 @@ impl ExactPartialDfaMixture {
                 let mut child = component.clone();
                 child.assign_transition(source, byte, destination);
                 child.current_state = destination;
-                insert_log_mass(&mut next, child, ln_base_mass - ln_state_count);
+                generated_children += 1;
+                self.insert_component(&mut next, child, ln_base_mass - ln_state_count);
             }
 
             if discovered < self.state_count {
@@ -366,11 +495,26 @@ impl ExactPartialDfaMixture {
                 child.current_state = destination;
                 child.emissions.push(StateCounts::default());
                 let ln_branch = f64::from(unused_labels).ln() - ln_state_count;
-                insert_log_mass(&mut next, child, ln_base_mass + ln_branch);
+                generated_children += 1;
+                self.insert_component(&mut next, child, ln_base_mass + ln_branch);
             }
         }
 
+        self.generated_children_last = generated_children;
         self.components = next;
+    }
+
+    fn insert_component(
+        &self,
+        map: &mut HashMap<Component, f64>,
+        component: Component,
+        ln_mass: f64,
+    ) {
+        let component = match self.quotient {
+            DfaQuotient::Discovery => component,
+            DfaQuotient::Predictive => component.canonicalized_predictive(),
+        };
+        insert_log_mass(map, component, ln_mass);
     }
 }
 
@@ -492,5 +636,64 @@ mod tests {
         assert_eq!(mixture.prospective_child_count(b'A'), 2);
         mixture.observe(b'A');
         assert!(mixture.prospective_child_count(b'B') >= mixture.component_count());
+    }
+
+
+    #[test]
+    fn predictive_canonicalization_forgets_irrelevant_state_names() {
+        let left = Component {
+            current_state: 0,
+            edges: vec![Edge::new(0, b'x', 1)],
+            emissions: vec![
+                StateCounts {
+                    total: 1,
+                    counts: vec![(b'A', 1)],
+                },
+                StateCounts {
+                    total: 1,
+                    counts: vec![(b'B', 1)],
+                },
+            ],
+        };
+        let right = Component {
+            current_state: 1,
+            edges: vec![Edge::new(1, b'x', 0)],
+            emissions: vec![
+                StateCounts {
+                    total: 1,
+                    counts: vec![(b'B', 1)],
+                },
+                StateCounts {
+                    total: 1,
+                    counts: vec![(b'A', 1)],
+                },
+            ],
+        };
+        assert_ne!(left, right);
+        assert_eq!(
+            left.canonicalized_predictive(),
+            right.canonicalized_predictive()
+        );
+    }
+
+    #[test]
+    fn predictive_and_discovery_quotients_have_identical_evidence() {
+        let mut discovery =
+            ExactPartialDfaMixture::with_quotient(2, DfaQuotient::Discovery).unwrap();
+        let mut predictive =
+            ExactPartialDfaMixture::with_quotient(2, DfaQuotient::Predictive).unwrap();
+
+        for &byte in b"mediawiki" {
+            let discovery_ln_prob = discovery.predict().ln_prob(&byte);
+            let predictive_ln_prob = predictive.predict().ln_prob(&byte);
+            assert!((discovery_ln_prob - predictive_ln_prob).abs() < 1e-12);
+            discovery.observe(byte);
+            predictive.observe(byte);
+            assert!(
+                predictive.component_count() <= discovery.component_count(),
+                "predictive quotient cannot create more exact components"
+            );
+            assert!((discovery.ln_evidence() - predictive.ln_evidence()).abs() < 1e-12);
+        }
     }
 }
