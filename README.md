@@ -6,7 +6,7 @@ Compute-aware Bayesian program mixtures, starting with finite-state predictors.
 
 KRAFT explores how to search and maintain a Bayesian mixture over small programs under a finite compute budget. The initial benchmark scores local text as bytes; the first program-mixture target is a tiny, exhaustively enumerable finite-state model family on CPU in Rust. That exact reference will let us measure what adaptive search misses before expanding the model family or moving to GPU.
 
-**Stage:** streaming byte harness implemented with uniform and adaptive unigram baselines. The first benchmark minimizes total coding cost on a local text stream; a first local enwik8 prefix result is recorded, while full-file results and model enumeration remain pending. See [current status](docs/status.md).
+**Stage:** streaming byte harness implemented with uniform and adaptive unigram baselines; the first exact labeled finite-state oracle is specified and implemented pending CI validation. A first local enwik8 prefix result is recorded, while full-file results and finite-state experiments remain pending. See [current status](docs/status.md).
 
 ## Start here
 
@@ -19,7 +19,7 @@ KRAFT explores how to search and maintain a Bayesian mixture over small programs
 
 ## Development
 
-Install Rust through [rustup](https://rustup.rs/). The checked-in toolchain pins the development compiler; CI also checks the minimum supported version declared in Cargo.toml and current stable.
+Install Rust through [rustup](https://rustup.rs/). The repository currently has no dedicated toolchain pin; CI checks the minimum supported version declared in Cargo.toml and current stable.
 
 ```sh
 cargo test --locked
