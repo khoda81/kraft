@@ -36,3 +36,20 @@ This supersedes the bootstrap ordering that made the first runner depend on fini
 ## 2026-09-06 — D011: current development pin, separate minimum support
 
 The user committed Rust 1.98.1 as the development toolchain in `1fc543fef87e`. Preserve that version pin rather than replacing it with a moving `stable` channel. `rust-toolchain.toml` is authoritative for development and formatting. `Cargo.toml` separately declares minimum supported Rust; retaining that compatibility check does not force local development onto that compiler. CI reads both files and also checks current stable, avoiding another duplicated version pin in workflow YAML.
+
+
+## 2026-09-06 — D012: higher-is-better coding ratio
+
+**Accepted:** replace bits-per-byte as a headline evaluation metric with coding ratio. For candidate model M against baseline B, define coding ratio as C_B / C_M, where both coding costs use the same observations and any common log unit. Higher is better: 1 means equal coding cost, values above 1 mean M codes better, and values below 1 mean worse. The ratio is invariant to log base. Against the uniform-byte model, this equals the ideal compression ratio for the fixed byte stream.
+
+Total nats/bits remain valid absolute coding-cost reports; only the per-byte normalization is removed from the primary harness output.
+
+## 2026-09-06 — D013: generic two-learner Bayesian mixture
+
+**Accepted:** the generic two-model mixture stores log posterior odds ln(w_A / w_B). After observing x, update the odds by the likelihood ratio P_A(x) / P_B(x), equivalently add ln P_A(x) - ln P_B(x) = C_B(x) - C_A(x). The next prediction is the posterior-weighted mixture of the component predictive distributions. Both component learners observe every symbol. Equal prior odds are the default; explicit prior log odds are supported.
+
+Exact zero posterior mass is absorbing. If both models assign zero probability to the same observation, the relative odds are left unchanged because that observation supplies no defined likelihood ratio.
+
+## 2026-09-06 — D014: no dedicated development toolchain pin
+
+The user's commit 3c6d09f removed rust-toolchain.toml after D011. CI therefore tests the Cargo.toml MSRV plus current stable and formats on stable. This supersedes D011's claim that rust-toolchain.toml is authoritative.
