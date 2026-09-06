@@ -15,11 +15,13 @@ The [byte harness](harness.md), generic model/distribution traits, two baselines
 
 Begin with direct scalar enumeration and transparent data structures. Avoid a large trait hierarchy until two actual implementations need one. A learned proposal distribution is a later experiment, not a replacement for the first exhaustive reference.
 
-## Finite-state semantics to settle in Q1
+## Finite-state oracle semantics (Q1)
 
-A candidate starting convention is: at time `t`, a state emits a probability for the next binary symbol; after the symbol is revealed, update its emission posterior (if learned) and transition using the observed symbol. A transition table alone is not a probabilistic predictor. Decide whether emissions are a fixed finite grid or integrated Beta-Bernoulli parameters. Specify whether state visits/emission counts are part of mutable inference state rather than description length.
+D012 fixes the exact oracle. Each labeled state has integrated Bernoulli emissions with a Jeffreys Beta(1/2, 1/2) prior. Prediction happens before observation; the observed bit updates the current state's emission counts and then selects one of two deterministic outgoing transitions. State zero is the initial state. Raw bytes are processed MSB-first as eight internal bit steps, so the existing byte harness receives a normalized probability mass over 256 values.
 
-Specify the initial state, reset boundaries, and whether descriptions include all states or only reachable ones. Implement explicit operation counts independently of wall-clock timing.
+For a fixed state count `N`, the first exact mixture is uniform over all `N^(2N)` labeled transition tables. State renamings and unreachable-state redundancy are intentionally retained until E2. Emission counts are mutable inference state, not description bits. A prior across state counts and a self-delimiting model code remain Q5 work.
+
+The scalar implementation favors transparency over packed performance. Explicit operation counts remain independent of wall-clock timing and belong with later scheduler work.
 
 ## GPU migration constraints
 

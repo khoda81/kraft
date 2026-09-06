@@ -36,3 +36,18 @@ This supersedes the bootstrap ordering that made the first runner depend on fini
 ## 2026-09-06 — D011: current development pin, separate minimum support
 
 The user committed Rust 1.98.1 as the development toolchain in `1fc543fef87e`. Preserve that version pin rather than replacing it with a moving `stable` channel. `rust-toolchain.toml` is authoritative for development and formatting. `Cargo.toml` separately declares minimum supported Rust; retaining that compatibility check does not force local development onto that compiler. CI reads both files and also checks current stable, avoiding another duplicated version pin in workflow YAML.
+
+
+## 2026-09-06 — D012: exact labeled binary FSM oracle
+
+**Accepted for Q1/E0:** the first finite-state oracle uses deterministic binary transitions with a fixed labeled state set and initial state zero. Before each bit, the current state emits a Bernoulli posterior predictive distribution with a Jeffreys Beta(1/2, 1/2) prior; after observing the bit, that state's count is updated and the transition indexed by the observed bit is followed. Raw bytes are factored MSB-first into eight such steps. Emission counts are mutable Bayesian inference state, not part of model description length.
+
+For a fixed state count N, Q1 conditions on the uniform prior over all N^(2N) labeled transition tables. It deliberately does **not** yet define a prior across N, canonicalize state renamings, or claim that this is the final compact program representation; those remain Q5/Q6. Stable enumeration ranks the 2N transition targets as base-N digits in (state, bit) order.
+
+The one-state hand check reduces to ordinary bitwise KT prediction. Starting from Beta(1/2, 1/2), the first two bits 1 then 0 have probabilities 1/2 and 1/4, so P(10)=1/8.
+
+**Rationale:** this family is exactly enumerable (1, 16, 729, 65,536 tables for N=1..4), has proper full-support predictions, and provides a reference against which the later multiply-shift family can be measured.
+
+## 2026-09-06 — D013: no dedicated development toolchain pin
+
+The user's commit 3c6d09f removed rust-toolchain.toml after D011. CI now tests the Cargo.toml MSRV plus current stable and formats on stable. This supersedes D011's claim that rust-toolchain.toml is authoritative; no additional rationale is inferred.
