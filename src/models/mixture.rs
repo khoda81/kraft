@@ -20,6 +20,9 @@ use crate::{Distribution, Model};
 ///
 /// log_weight_ratio += ln P_a(x) - ln P_b(x).
 ///
+/// Since coding cost is minus log probability, the added term is also
+/// cost_b(x) - cost_a(x): model A's coding advantage over model B.
+///
 /// The next prediction is the posterior-weighted mixture of the two component
 /// predictions. Component models are both updated on every observation.
 #[derive(Debug, Clone)]
@@ -36,6 +39,18 @@ impl<A, B> Mixture<A, B> {
             a,
             b,
             log_weight_ratio: 0.0,
+        }
+    }
+
+    /// Construct a mixture with an explicit prior log weight ratio ln(w_a / w_b).
+    ///
+    /// Positive values favor model A; negative values favor model B.
+    pub fn with_log_weight_ratio(a: A, b: B, log_weight_ratio: f64) -> Self {
+        assert!(!log_weight_ratio.is_nan(), "mixture log weight ratio cannot be NaN");
+        Self {
+            a,
+            b,
+            log_weight_ratio,
         }
     }
 
