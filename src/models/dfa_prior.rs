@@ -77,6 +77,8 @@ pub struct DfaPriorDiagnostics {
     pub ln_active_joint_mass: f64,
     /// Exact prior mass of all omitted N > max_states classes.
     pub omitted_prior_mass_upper: f64,
+    /// Natural-log upper bound on omitted unnormalized posterior/joint mass.
+    pub ln_omitted_joint_mass_upper: f64,
     /// Certified upper bound on omitted posterior mass after the observed prefix.
     pub omitted_posterior_mass_upper: f64,
     /// Certified upper bound on D_KL(Q_retained || P_full), in nats.
@@ -95,6 +97,8 @@ pub struct DfaPriorDiagnostics {
 pub struct ExactDfaPriorPosterior {
     quotient: DfaQuotient,
     classes: Vec<ExactPartialDfaMixture>,
+    global_byte_counts: [u64; 256],
+    ln_likelihood_upper: f64,
 }
 
 impl ExactDfaPriorPosterior {
@@ -114,7 +118,12 @@ impl ExactDfaPriorPosterior {
             classes.push(ExactPartialDfaMixture::with_quotient(states, quotient)?);
         }
 
-        Ok(Self { quotient, classes })
+        Ok(Self {
+            quotient,
+            classes,
+            global_byte_counts: [0; 256],
+            ln_likelihood_upper: 0.0,
+        })
     }
 
     /// Largest state-count class evaluated exactly.
@@ -173,12 +182,13 @@ impl ExactDfaPriorPosterior {
     /// Exact posterior on evaluated classes plus a certified omitted-tail bound.
     pub fn diagnostics(&self) -> DfaPriorDiagnostics {
         let ln_active_joint_mass = self.ln_active_joint_mass();
-        let ln_tail_upper = -f64::from(self.max_states()) * LN_2;
-        let ln_ratio = ln_tail_upper - ln_active_joint_mass;
+        let ln_tail_prior = -f64::from(self.max_states()) * LN_2;
+        let ln_omitted_joint_mass_upper = ln_tail_prior + self.ln_likelihood_upper;
+        let ln_ratio = ln_omitted_joint_mass_upper - ln_active_joint_mass;
 
         let retained_to_full_kl_upper_nats = softplus(ln_ratio);
         let omitted_posterior_mass_upper = logistic(ln_ratio);
-        let omitted_prior_mass_upper = ln_tail_upper.exp();
+        let omitted_prior_mass_upper = ln_tail_prior.exp();
 
         let state_counts = self
             .classes
@@ -201,6 +211,7 @@ impl ExactDfaPriorPosterior {
             max_states: self.max_states(),
             ln_active_joint_mass,
             omitted_prior_mass_upper,
+            ln_omitted_joint_mass_upper,
             omitted_posterior_mass_upper,
             retained_to_full_kl_upper_nats,
             components: self.component_count(),
@@ -209,6 +220,14 @@ impl ExactDfaPriorPosterior {
     }
 
     fn observe_exact(&mut self, byte: u8) {
+        let global_count = self.global_byte_counts[usize::from(byte)];
+        let numerator = global_count as f64 + 0.5;
+        let denominator = global_count as f64 + 128.0;
+        self.ln_likelihood_upper += (numerator / denominator).ln();
+        self.global_byte_counts[usize::from(byte)] = global_count
+            .checked_add(1)
+            .expect("global DFA-prior byte count overflow");
+
         for class in &mut self.classes {
             class.observe(byte);
         }
@@ -356,8 +375,23 @@ mod tests {
         let posterior = ExactDfaPriorPosterior::new(4).unwrap();
         let diagnostics = posterior.diagnostics();
         assert!((diagnostics.omitted_prior_mass_upper - 1.0 / 16.0).abs() < 1e-14);
+        assert!(
+            (diagnostics.ln_omitted_joint_mass_upper - (1.0_f64 / 16.0).ln()).abs()
+                < 1e-14
+        );
         assert!(diagnostics.omitted_posterior_mass_upper > 0.0);
         assert!(diagnostics.omitted_posterior_mass_upper < 1.0);
         assert!(diagnostics.retained_to_full_kl_upper_nats > 0.0);
+    }
+
+    #[test]
+    fn universal_emission_bound_tracks_the_first_observation_exactly() {
+        let mut posterior = ExactDfaPriorPosterior::new(3).unwrap();
+        posterior.observe(b'A');
+        let diagnostics = posterior.diagnostics();
+        let expected_tail_joint = (1.0_f64 / 8.0) * (1.0 / 256.0);
+        assert!(
+            (diagnostics.ln_omitted_joint_mass_upper - expected_tail_joint.ln()).abs() < 1e-14
+        );
     }
 }
