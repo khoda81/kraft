@@ -8,15 +8,7 @@
 //! so heuristic search quality affects tightness, not validity of the bound.
 
 use std::{
-    cmp::Ordering,
-    collections::HashSet,
-    env,
-    ffi::OsString,
-    fs,
-    io,
-    path::PathBuf,
-    process::ExitCode,
-    thread,
+    collections::HashSet, env, ffi::OsString, fs, io, path::PathBuf, process::ExitCode, thread,
     time::Instant,
 };
 
@@ -195,19 +187,14 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
             match arg.to_string_lossy().as_ref() {
                 "--states" => states = parse_states(text)?,
                 "--topologies" => topologies = parse_topologies(text)?,
-                "--max-exceptions" => {
-                    max_exceptions = parse_usize("--max-exceptions", text, 0)?
-                }
+                "--max-exceptions" => max_exceptions = parse_usize("--max-exceptions", text, 0)?,
                 "--search-bytes" => search_bytes = parse_usize("--search-bytes", text, 1)?,
                 "--screen-bytes" => screen_bytes = parse_usize("--screen-bytes", text, 1)?,
                 "--skeletons" => skeletons = parse_usize("--skeletons", text, 1)?,
                 "--beam" => beam = parse_usize("--beam", text, 1)?,
-                "--keys-per-parent" => {
-                    keys_per_parent = parse_usize("--keys-per-parent", text, 1)?
-                }
+                "--keys-per-parent" => keys_per_parent = parse_usize("--keys-per-parent", text, 1)?,
                 "--destinations-per-key" => {
-                    destinations_per_key =
-                        parse_usize("--destinations-per-key", text, 1)?
+                    destinations_per_key = parse_usize("--destinations-per-key", text, 1)?
                 }
                 "--screen-candidates" => {
                     screen_candidates = parse_usize("--screen-candidates", text, 1)?
@@ -325,13 +312,7 @@ fn top_visited_keys(candidate: &Candidate, limit: usize) -> Vec<(u16, u8, u64)> 
     visited
 }
 
-fn push_destination(
-    output: &mut Vec<u16>,
-    value: i64,
-    states: u16,
-    default: u16,
-    limit: usize,
-) {
+fn push_destination(output: &mut Vec<u16>, value: i64, states: u16, default: u16, limit: usize) {
     if output.len() >= limit || value < 0 || value >= i64::from(states) {
         return;
     }
@@ -513,7 +494,10 @@ fn write_best(path: &PathBuf, candidate: &Candidate) -> io::Result<()> {
         candidate.model.topology().as_str()
     ));
     output.push_str(&format!("exceptions\t{}\n", candidate.exceptions()));
-    output.push_str(&format!("prior_bits\t{:.12}\n", candidate.model.prior_bits()));
+    output.push_str(&format!(
+        "prior_bits\t{:.12}\n",
+        candidate.model.prior_bits()
+    ));
     output.push_str(&format!("ln_evidence\t{:.12}\n", candidate.ln_evidence));
     output.push_str("source\tbyte_hex\tdestination\n");
     for edge in candidate.model.overrides() {
@@ -549,8 +533,7 @@ fn run(args: &Args) -> io::Result<()> {
     for &states in &args.states {
         for &topology in &args.topologies {
             skeleton_models.push(
-                SparseDfa::empty(states, topology)
-                    .map_err(|error| invalid(error.to_string()))?,
+                SparseDfa::empty(states, topology).map_err(|error| invalid(error.to_string()))?,
             );
         }
     }
@@ -616,8 +599,8 @@ fn run(args: &Args) -> io::Result<()> {
     }
     sort_best(&mut finalists);
 
-    let kt = SparseDfa::empty(1, DefaultTopology::Stay)
-        .map_err(|error| invalid(error.to_string()))?;
+    let kt =
+        SparseDfa::empty(1, DefaultTopology::Stay).map_err(|error| invalid(error.to_string()))?;
     let kt_nats = -kt.ln_evidence(&data);
     let uniform_nats = data.len() as f64 * 8.0 * LN_2;
     let explored_log_mass = log_sum_exp(finalists.iter().map(Candidate::ln_joint));
