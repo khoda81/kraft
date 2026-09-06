@@ -117,12 +117,15 @@ where
         // probability to an observation, there is no relative evidence, so keep
         // the existing odds rather than manufacturing NaN from (-inf)-(-inf).
         if self.log_weight_ratio.is_finite() {
-            self.log_weight_ratio = match (a_ln_prob, b_ln_prob) {
-                (f64::NEG_INFINITY, f64::NEG_INFINITY) => self.log_weight_ratio,
-                (f64::NEG_INFINITY, _) => f64::NEG_INFINITY,
-                (_, f64::NEG_INFINITY) => f64::INFINITY,
-                _ => self.log_weight_ratio + a_ln_prob - b_ln_prob,
-            };
+            if a_ln_prob == f64::NEG_INFINITY && b_ln_prob == f64::NEG_INFINITY {
+                // No relative evidence.
+            } else if a_ln_prob == f64::NEG_INFINITY {
+                self.log_weight_ratio = f64::NEG_INFINITY;
+            } else if b_ln_prob == f64::NEG_INFINITY {
+                self.log_weight_ratio = f64::INFINITY;
+            } else {
+                self.log_weight_ratio += a_ln_prob - b_ln_prob;
+            }
         }
 
         self.a.observe(observation.clone());
