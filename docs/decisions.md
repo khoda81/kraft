@@ -53,3 +53,10 @@ Exact zero posterior mass is absorbing. If both models assign zero probability t
 ## 2026-09-06 — D014: no dedicated development toolchain pin
 
 The user's commit 3c6d09f removed rust-toolchain.toml after D011. CI therefore tests the Cargo.toml MSRV plus current stable and formats on stable. This supersedes D011's claim that rust-toolchain.toml is authoritative.
+
+
+## 2026-09-06 — D015: Rust 1.98.1 is the development floor
+
+**Accepted:** use Rust 1.98.1 everywhere for active development instead of retaining Rust 1.85 as a compatibility target. `Cargo.toml` now declares `rust-version = "1.98.1"`, `rust-toolchain.toml` pins 1.98.1 with rustfmt and Clippy, and CI tests the pinned toolchain plus current stable.
+
+This supersedes D014 and the compatibility portion of D011. Historical experiment records that happened to use Rust 1.85 remain historical evidence and are not rewritten.
