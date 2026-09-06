@@ -45,6 +45,13 @@ jobs:
           PYTHON
       - name: Install Rust
         run: rustup toolchain install "${{ steps.rust.outputs.toolchain }}" --profile minimal --component rustfmt,clippy
+      - name: Resolve lockfile for clap migration
+        if: matrix.target == 'pinned'
+        run: |
+          cargo +${{ steps.rust.outputs.toolchain }} generate-lockfile
+          echo '---BEGIN CARGO.LOCK---'
+          cat Cargo.lock
+          echo '---END CARGO.LOCK---'
       - name: Format
         run: cargo +${{ steps.rust.outputs.toolchain }} fmt --all -- --check
         if: matrix.target == 'pinned'
