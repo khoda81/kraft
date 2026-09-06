@@ -139,8 +139,6 @@ where
                 // No relative evidence.
             } else if a_ln_prob == f64::NEG_INFINITY {
                 self.log_weight_ratio = f64::NEG_INFINITY;
-            } else if b_ln_prob == f64::NEG_INFINITY {
-                self.log_weight_ratio = f64::INFINITY;
             } else {
                 self.log_weight_ratio += a_ln_prob - b_ln_prob;
             }
