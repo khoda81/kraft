@@ -80,7 +80,6 @@ struct BigramStats {
 struct CurvePoint {
     states: usize,
     total_nats: f64,
-    start_cluster_predictive_ln: f64,
 }
 
 fn invalid(message: impl Into<String>) -> io::Error {
@@ -209,30 +208,6 @@ fn bigram_stats(data: &[u8]) -> BigramStats {
     }
 }
 
-fn partition_evidence(clusters: &[Cluster]) -> (f64, f64) {
-    let base = clusters
-        .iter()
-        .filter(|cluster| cluster.active)
-        .map(|cluster| cluster.evidence)
-        .sum::<f64>();
-
-    // The first observed byte is emitted from fixed start state zero. Since state
-    // labels are otherwise arbitrary in a reset model, choose which active
-    // cluster is called state zero. Adding one observation changes integrated
-    // evidence by exactly its current posterior-predictive log probability.
-    let first_byte = clusters
-        .iter()
-        .filter(|cluster| cluster.active)
-        .map(|cluster| {
-            ((cluster.counts[usize::from(0_u8)] as f64 + JEFFREYS_ALPHA)
-                / (cluster.total as f64 + JEFFREYS_TOTAL))
-                .ln()
-        })
-        .fold(f64::NEG_INFINITY, f64::max);
-
-    (base + first_byte, first_byte)
-}
-
 fn fit_curve(stats: &BigramStats, requested: &[usize]) -> Vec<CurvePoint> {
     let mut clusters = vec![Cluster::empty(); ALPHABET];
     for previous in 0..ALPHABET {
@@ -281,7 +256,6 @@ fn fit_curve(stats: &BigramStats, requested: &[usize]) -> Vec<CurvePoint> {
             points.push(CurvePoint {
                 states: active_count,
                 total_nats: -(base + best_first),
-                start_cluster_predictive_ln: best_first,
             });
         }
         if active_count == 1 {
