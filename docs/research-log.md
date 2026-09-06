@@ -1,5 +1,18 @@
 # Research log
 
+## 2026-09-06 — Exact finite-state oracle implementation
+
+**Decision:** Q1 is fixed by D012: labeled deterministic binary transitions, state zero initially, integrated per-state Beta(1/2, 1/2) emissions, and MSB-first factorization inside the existing byte harness. The first exact prior is conditional on a fixed state count and uniform over all labeled transition tables.
+
+**Work:** added scalar `BinaryKtFsm`, stable base-N transition-table ranks, exact labeled-table counts, and `ExactFsmMixture` with an explicit maximum-model allocation guard. Added analytic and normalization tests, including the one-state Beta-Bernoulli check and exact one-state mixture identity. The multiply-shift family is intentionally deferred so it can be evaluated against this oracle rather than define it.
+
+**Validation:** pending GitHub CI on `feat/finite-state-oracle`; no experiment result is claimed yet. The available agent shell has no Rust toolchain and cannot resolve github.com, so repository CI is the validation path.
+
+**Maintenance:** the user's commit `3c6d09f` removed `rust-toolchain.toml`; CI and documentation still referenced it. D013 records the resulting no-pin policy, with MSRV plus current stable CI.
+
+**Next:** if CI passes, mark Q2 complete and add Q3 synthetic generators/runner integration.
+
+
 ## 2026-09-06 — Toolchain update and first enwik8 prefix result
 
 **User work:** upgraded the development toolchain to Rust 1.98.1 and pushed `1fc543fef87e`; supplied unigram results for the first million enwik8 bytes under Rust 1.85.0 and 1.98.1.
