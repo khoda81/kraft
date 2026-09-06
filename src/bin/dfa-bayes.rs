@@ -202,7 +202,7 @@ fn run(args: &Args) -> io::Result<()> {
     println!("transition_prior: iid uniform destinations within each N");
     println!();
     println!(
-        "step\tbyte\tcomponents\tposterior_N\tcomponents_N\tomitted_posterior_upper\tkl_upper_nats\tcoding_ratio_uniform\tcoding_ratio_kt\telapsed_s"
+        "step\tbyte\tcomponents\tposterior_N\tcomponents_N\tln_omitted_joint_upper\tomitted_posterior_upper\tkl_upper_nats\tcoding_ratio_uniform\tcoding_ratio_kt\telapsed_s"
     );
 
     let mut buffer = [0_u8; 64 * 1024];
@@ -245,12 +245,13 @@ fn run(args: &Args) -> io::Result<()> {
             if bytes.is_multiple_of(args.report_every) || bytes == args.limit {
                 let diagnostics = posterior.diagnostics();
                 println!(
-                    "{}\t{}\t{}\t{}\t{}\t{:.12}\t{:.12}\t{:.9}\t{:.9}\t{:.6}",
+                    "{}\t{}\t{}\t{}\t{}\t{:.12}\t{:.12}\t{:.12}\t{:.9}\t{:.9}\t{:.6}",
                     bytes,
                     byte,
                     diagnostics.components,
                     format_state_posterior(&posterior),
                     format_component_counts(&posterior),
+                    diagnostics.ln_omitted_joint_mass_upper,
                     diagnostics.omitted_posterior_mass_upper,
                     diagnostics.retained_to_full_kl_upper_nats,
                     coding_ratio_uniform(bytes, total_nats),
@@ -278,6 +279,10 @@ fn run(args: &Args) -> io::Result<()> {
     println!(
         "omitted_prior_mass_upper: {:.12}",
         diagnostics.omitted_prior_mass_upper
+    );
+    println!(
+        "ln_omitted_joint_mass_upper: {:.12}",
+        diagnostics.ln_omitted_joint_mass_upper
     );
     println!(
         "omitted_posterior_mass_upper: {:.12}",
