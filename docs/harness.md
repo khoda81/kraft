@@ -17,7 +17,7 @@ pub trait Model<T> {
 
 The traits are generic; file evaluation requires `Model<u8>`. A prediction may borrow the model. For each byte the harness calls `predict`, evaluates `ln_prob`, drops the prediction, records the cost, then calls `observe`. There is no update before scoring, tokenization, UTF-8 decoding, newline normalization, BOS/EOS insertion, warm-up exclusion, or implicit reset. Invalid UTF-8 bytes are valid observations too. File order and bytes define the benchmark.
 
-The primary objective is `sum_t -ln P(x_t | x_<t)`, in nats. The report also converts to total bits and bits per byte. All bytes, including the first, are scored. This is ideal coding length, not an actual compressed-file size; no arithmetic coder or EOF/length encoding is implemented.
+The primary objective is `sum_t -ln P(x_t | x_<t)`, in nats. The report also converts to total bits and reports the coding ratio against uniform, defined as `uniform_cost / model_cost`. Higher is better: uniform is 1, values above 1 beat uniform, and values below 1 are worse. Because it is a ratio of coding costs, the value is invariant to log base. Against uniform it is the ideal compression ratio for the fixed byte stream. All bytes, including the first, are scored. This is ideal coding length, not an actual compressed-file size; no arithmetic coder or EOF/length encoding is implemented.
 
 ## Run
 
@@ -55,7 +55,7 @@ Use `evaluate(reader, &mut model)` for totals only. Pass `Read::take(limit)` to 
 
 - `ln_prob` returns natural-log probability mass. Models must normalize their distributions; the generic evaluator cannot enumerate arbitrary support to prove this.
 - Zero probability yields infinite cost without clipping, while later observations continue. NaN/positive log probabilities fail before observing the affected byte.
-- Empty input costs zero; bits per byte is undefined (`None` in Rust, `n/a` in CLI output).
+- Empty input costs zero; coding ratio is undefined (`None` in Rust, `n/a` in CLI output).
 - Totals use compensated summation. The evaluator buffers input and uses constant memory excluding the model and cost consumer.
 - Read and cost-output errors propagate. Prior observations are not rolled back; the reader may have buffered ahead.
 - `evaluation_seconds` measures reading, prediction, scoring, updates, and optional cost-output flushing. It excludes compilation, model construction, file opening, CSV header, and printing the report. It is not a complete search-compute budget.
