@@ -136,10 +136,23 @@ The implementation evaluates `N=1..N_max` exactly using the lazy partial-DFA ora
 The omitted state-count prior is exactly
 
 ```math
-U_0=\sum_{N>N_{\max}}2^{-N}=2^{-N_{\max}}.
+\Pi_{\text{tail}}=\sum_{N>N_{\max}}2^{-N}=2^{-N_{\max}}.
 ```
 
-For any observed prefix, every likelihood is at most one, so the omitted unnormalized posterior mass remains bounded by `U_t <= U_0`.
+A trivial joint-mass bound would multiply this by one, but KRAFT uses a much tighter universal emission bound. Before observing byte `x_t`, let `G_t(x_t)` be the number of previous global occurrences of that byte. In any DFA state, its local count `c` satisfies `c <= G_t(x_t)` and its total visit count `m` satisfies `m >= c`. Therefore every possible DFA obeys
+
+```math
+P(x_t\mid x_{<t},h)
+=\frac{c+1/2}{m+128}
+\le
+\frac{G_t(x_t)+1/2}{G_t(x_t)+128}.
+```
+
+Multiplying these terms over the observed prefix gives a data-dependent likelihood upper bound `B_t` valid for every omitted DFA, regardless of state count or transition structure. Hence the omitted unnormalized posterior mass satisfies
+
+```math
+U_t\le 2^{-N_{\max}} B_t.
+```
 
 If
 
@@ -150,9 +163,9 @@ Z_t=\sum_{N=1}^{N_{\max}}2^{-N}P_N(x_{1:t})
 is the exact joint mass of evaluated classes, then the posterior conditioned on evaluated classes has certified omitted-mass and forward-KL bounds
 
 ```math
-\delta_t\le\frac{U_0}{Z_t+U_0},
+\delta_t\le\frac{U_t}{Z_t+U_t},
 \qquad
-D_{KL}(Q_t\Vert P_t)\le\ln\left(1+\frac{U_0}{Z_t}\right).
+D_{KL}(Q_t\Vert P_t)\le\ln\left(1+\frac{U_t}{Z_t}\right).
 ```
 
 The truncated predictive distribution is exact conditional on `N<=N_max`; the KL certificate quantifies how far that retained posterior can be from the full unbounded DFA posterior. The certificate can loosen as evidence shrinks, so larger state-count classes must eventually be opened if the tail becomes important.
