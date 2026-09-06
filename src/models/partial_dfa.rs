@@ -167,7 +167,6 @@ impl Component {
         bytes
     }
 
-
     /// Canonicalize the entire future-relevant sufficient state under arbitrary
     /// permutations of discovered state identities.
     ///
@@ -230,11 +229,7 @@ impl Component {
     }
 }
 
-fn visit_permutations(
-    values: &mut [u16],
-    start: usize,
-    callback: &mut impl FnMut(&[u16]),
-) {
+fn visit_permutations(values: &mut [u16], start: usize, callback: &mut impl FnMut(&[u16])) {
     if start == values.len() {
         callback(values);
         return;
@@ -315,19 +310,14 @@ impl ExactPartialDfaMixture {
     }
 
     /// Create the oracle with an explicit exact state-label quotient.
-    pub fn with_quotient(
-        state_count: u16,
-        quotient: DfaQuotient,
-    ) -> Result<Self, PartialDfaError> {
+    pub fn with_quotient(state_count: u16, quotient: DfaQuotient) -> Result<Self, PartialDfaError> {
         if state_count == 0 {
             return Err(PartialDfaError::ZeroStates);
         }
         if state_count > 256 {
             return Err(PartialDfaError::TooManyStates);
         }
-        if quotient == DfaQuotient::Predictive
-            && state_count > MAX_PREDICTIVE_CANONICAL_STATES
-        {
+        if quotient == DfaQuotient::Predictive && state_count > MAX_PREDICTIVE_CANONICAL_STATES {
             return Err(PartialDfaError::TooManyStatesForPredictiveQuotient);
         }
         let mut components = HashMap::new();
