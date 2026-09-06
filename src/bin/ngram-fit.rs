@@ -11,15 +11,7 @@
 //! Only observed contexts are materialized. Orders through seven are supported;
 //! the formal state space at order seven is 256^7 = 2^56 states.
 
-use std::{
-    env,
-    ffi::OsString,
-    fs,
-    io,
-    path::PathBuf,
-    process::ExitCode,
-    time::Instant,
-};
+use std::{env, ffi::OsString, fs, io, path::PathBuf, process::ExitCode, time::Instant};
 
 const ALPHABET: usize = 256;
 const JEFFREYS_ALPHA: f64 = 0.5;
@@ -520,11 +512,7 @@ fn score(data: &[u8], order: usize, gamma: &GammaCache) -> Score {
 }
 
 fn possible_contexts(order: usize) -> u64 {
-    if order == 0 {
-        1
-    } else {
-        1_u64 << (8 * order)
-    }
+    if order == 0 { 1 } else { 1_u64 << (8 * order) }
 }
 
 fn coding_ratio(reference_nats: f64, candidate_nats: f64) -> f64 {
