@@ -201,8 +201,7 @@ impl ExactDfaPriorPosterior {
 
         for class in &self.classes {
             let states = class.state_count();
-            let ln_class_joint =
-                Self::ln_state_count_prior(states) + class.ln_evidence();
+            let ln_class_joint = Self::ln_state_count_prior(states) + class.ln_evidence();
             let class_posterior_mass = (ln_class_joint - ln_active_joint_mass).exp();
 
             for component in class.top_components(limit) {
