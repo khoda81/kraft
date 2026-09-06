@@ -27,7 +27,7 @@ Updated: 2026-09-06. Work from the first unblocked item. `[ ]` is pending, `[x]`
 ## Housekeeping
 
 - [ ] H1 — Choose a license before encouraging external reuse or publishing the crate.
-- [ ] H2 — Apply and verify GitHub description/topics; use `scripts/configure_repo.sh` if admin APIs are unavailable in the agent environment.
+- [x] H2 — Apply and verify GitHub description/topics. Completed by the user with `scripts/configure_repo.sh`; successful CLI output confirmed the description and all seven topics on 2026-09-06.
 - [ ] H3 — Select a durable artifact backend before generating outputs too expensive to reproduce.
 
 New tasks should name a concrete deliverable, dependency, and completion criterion. Reprioritization belongs in the research log; keep abandoned tasks with a short reason rather than deleting their history.

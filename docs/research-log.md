@@ -12,7 +12,7 @@
 
 **Validation:** locally passed Rust 1.85.0 formatting, Clippy with warnings denied, four unit tests, one doctest, rustdoc with warnings denied, 15 Markdown files checked for relative file links, shell syntax, and Git whitespace checks. Published via the connected GitHub account after direct Git push lacked shell credentials. [CI run 34023389218](https://github.com/khoda81/kraft/actions/runs/34023389218) passed all three jobs (Rust 1.85.0, current stable, and documentation links) for implementation commit `9ab1d44118e0005ce16eccb1de67c76ba3e34e27`. This subsequent log edit records that result.
 
-**Repository administration:** desired description/topics are encoded in `scripts/configure_repo.sh`. The connector exposes no settings mutation; a direct GitHub REST update returned HTTP 401 (requires authentication). Description and topics remain unapplied; H2 can be completed using the script with an authenticated gh CLI. No license or release tag was created.
+**Repository administration:** desired description/topics are encoded in `scripts/configure_repo.sh`. The connector exposes no settings mutation; a direct GitHub REST update returned HTTP 401 (requires authentication). Follow-up: the user ran the script successfully on 2026-09-06 and supplied the verification output showing the configured description and all seven topics. H2 is complete. No license or release tag was created.
 
 **Next:** Q1 — settle the exact finite-state family and hand-compute its smallest example.
 

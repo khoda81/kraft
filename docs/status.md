@@ -12,6 +12,7 @@ Bootstrap, before E0. No empirical conclusions about KRAFT's predictive quality,
 - Stable log-weight normalization with zero-mass/error handling and numerical unit tests.
 - CI for formatting, Clippy, tests, rustdoc, and local Markdown file links; dependency-update configuration and contribution templates.
 - Research context, proposed architecture, experiment protocols, and prioritized queue.
+- GitHub description and all seven research topics configured; confirmed by user-provided CLI output.
 
 The validation and remote setup outcome is recorded in the [bootstrap log](research-log.md). No finite-state learner, enumerator, scheduler, runner, GPU backend, or experiment dataset is implemented yet.
 
@@ -24,7 +25,7 @@ The validation and remote setup outcome is recorded in the [bootstrap log](resea
 - The exact previously discussed multiply-shift mapping is not recoverable from the available context. It must be specified explicitly before implementation.
 - The model encoding, emission prior, and treatment of equivalent state-labelings are unresolved.
 - Compute cost may guide scheduling; whether to study a separate speed-weighted model prior remains an explicit ablation.
-- License selection and repository-admin metadata status are tracked in the queue/log.
+- License selection remains pending in the queue.
 
 ## Evidence so far
 
