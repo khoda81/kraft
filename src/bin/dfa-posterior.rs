@@ -8,9 +8,13 @@ use std::{
     time::Instant,
 };
 
-use kraft::{Distribution, Model, baselines::Kt, models::partial_dfa::ExactPartialDfaMixture};
+use kraft::{
+    Distribution, Model,
+    baselines::Kt,
+    models::partial_dfa::{DfaQuotient, ExactPartialDfaMixture},
+};
 
-const HELP: &str = "Usage: dfa-posterior <file> [--states N] [--limit BYTES] [--epsilon NATS] [--max-components N] [--report-every N]
+const HELP: &str = "Usage: dfa-posterior <file> [--states N] [--quotient discovery|predictive] [--limit BYTES] [--epsilon NATS] [--max-components N] [--report-every N]
 
 Exact oracle over all labeled byte-input DFAs with a fixed state count.
 Transitions are instantiated lazily and unused state labels are canonicalized.
@@ -18,6 +22,7 @@ Each state uses an integrated Dirichlet-1/2 byte predictor.
 
 Defaults:
   --states 2
+  --quotient predictive
   --limit 64
   --epsilon 0.01
   --max-components 2000000
@@ -32,6 +37,7 @@ enough mass for D_KL(Q || P) <= epsilon.";
 struct Args {
     path: PathBuf,
     states: u16,
+    quotient: DfaQuotient,
     limit: u64,
     epsilon: f64,
     max_components: usize,
@@ -46,6 +52,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
     let mut args = args.into_iter();
     let mut path = None;
     let mut states = 2_u16;
+    let mut quotient = DfaQuotient::Predictive;
     let mut limit = 64_u64;
     let mut epsilon = 0.01_f64;
     let mut max_components = 2_000_000_usize;
@@ -63,6 +70,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
 
         if !positional
             && (arg == "--states"
+                || arg == "--quotient"
                 || arg == "--limit"
                 || arg == "--epsilon"
                 || arg == "--max-components"
@@ -80,6 +88,16 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
                     .ok()
                     .filter(|value| (1..=256).contains(value))
                     .ok_or_else(|| invalid("--states must be an integer in 1..=256"))?;
+            } else if arg == "--quotient" {
+                quotient = match text {
+                    "discovery" => DfaQuotient::Discovery,
+                    "predictive" => DfaQuotient::Predictive,
+                    _ => {
+                        return Err(invalid(
+                            "--quotient must be discovery or predictive",
+                        ));
+                    }
+                };
             } else if arg == "--limit" {
                 limit = text
                     .parse()
@@ -113,6 +131,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
     Ok(Some(Args {
         path: path.ok_or_else(|| invalid("missing input file; use --help"))?,
         states,
+        quotient,
         limit,
         epsilon,
         max_components,
@@ -127,8 +146,8 @@ fn coding_ratio_uniform(bytes: u64, total_nats: f64) -> f64 {
 fn run(args: &Args) -> io::Result<()> {
     let input = File::open(&args.path)?;
     let mut reader = BufReader::new(input).take(args.limit);
-    let mut mixture =
-        ExactPartialDfaMixture::new(args.states).map_err(|error| invalid(error.to_string()))?;
+    let mut mixture = ExactPartialDfaMixture::with_quotient(args.states, args.quotient)
+        .map_err(|error| invalid(error.to_string()))?;
     let mut kt = Kt::default();
 
     let mut total_nats = 0.0;
@@ -138,6 +157,13 @@ fn run(args: &Args) -> io::Result<()> {
 
     println!("input: {:?}", args.path);
     println!("states: {}", args.states);
+    println!(
+        "quotient: {}",
+        match args.quotient {
+            DfaQuotient::Discovery => "discovery",
+            DfaQuotient::Predictive => "predictive",
+        }
+    );
     println!("limit_bytes: {}", args.limit);
     println!("epsilon_nats: {:.12}", args.epsilon);
     println!("max_components: {}", args.max_components);
@@ -228,6 +254,11 @@ fn run(args: &Args) -> io::Result<()> {
         println!("coding_ratio_kt: {:.12}", kt_total_nats / total_nats);
         let diagnostics = mixture.diagnostics(args.epsilon);
         println!("components: {}", diagnostics.components);
+        println!(
+            "generated_children_last: {}",
+            diagnostics.generated_children_last
+        );
+        println!("merged_children_last: {}", diagnostics.merged_children_last);
         println!(
             "retained_components_epsilon: {}",
             diagnostics.retained_components
