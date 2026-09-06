@@ -256,8 +256,8 @@ impl SparseDfa {
         let ln_evidence = counts
             .iter()
             .zip(&totals)
-            .filter(|(_, &total)| total != 0)
-            .map(|(state_counts, &total)| state_ln_evidence(state_counts, total))
+            .filter(|(_, total)| **total != 0)
+            .map(|(state_counts, total)| state_ln_evidence(state_counts, *total))
             .sum();
 
         SparseDfaScore {
