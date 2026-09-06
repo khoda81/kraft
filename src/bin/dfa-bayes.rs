@@ -1,9 +1,9 @@
 use std::{
     env,
     ffi::OsString,
-    fs::File,
-    io::{self, BufReader, Read},
-    path::PathBuf,
+    fs::{self, File},
+    io::{self, BufReader, BufWriter, Read, Write},
+    path::{Path, PathBuf},
     process::ExitCode,
     time::Instant,
 };
@@ -34,6 +34,8 @@ Options:
   --limit BYTES
   --max-components N
   --report-every N
+  --top-components N
+  --dump-top PATH
 
 Defaults:
   --max-states 3
@@ -41,6 +43,10 @@ Defaults:
   --limit 32
   --max-components 2000000
   --report-every 1
+  --top-components 100
+
+If --dump-top is provided, the highest-posterior sufficient-state aggregates
+are written at exit, including when the resource guard stops the run.
 
 The command stops before an observation whose total unmerged exact child count
 would exceed --max-components.";
@@ -53,6 +59,8 @@ struct Args {
     limit: u64,
     max_components: usize,
     report_every: u64,
+    top_components: usize,
+    dump_top: Option<PathBuf>,
 }
 
 fn invalid(message: impl Into<String>) -> io::Error {
@@ -67,6 +75,8 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
     let mut limit = 32_u64;
     let mut max_components = 2_000_000_usize;
     let mut report_every = 1_u64;
+    let mut top_components = 100_usize;
+    let mut dump_top = None;
     let mut positional = false;
 
     while let Some(arg) = args.next() {
@@ -83,7 +93,9 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
                 || arg == "--quotient"
                 || arg == "--limit"
                 || arg == "--max-components"
-                || arg == "--report-every")
+                || arg == "--report-every"
+                || arg == "--top-components"
+                || arg == "--dump-top")
         {
             let value = args
                 .next()
@@ -114,12 +126,20 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
                     .ok()
                     .filter(|value| *value > 0)
                     .ok_or_else(|| invalid("--max-components must be positive"))?;
-            } else {
+            } else if arg == "--report-every" {
                 report_every = text
                     .parse()
                     .ok()
                     .filter(|value| *value > 0)
                     .ok_or_else(|| invalid("--report-every must be positive"))?;
+            } else if arg == "--top-components" {
+                top_components = text
+                    .parse()
+                    .ok()
+                    .filter(|value| *value > 0)
+                    .ok_or_else(|| invalid("--top-components must be positive"))?;
+            } else {
+                dump_top = Some(PathBuf::from(value));
             }
         } else if !positional && arg.to_string_lossy().starts_with('-') {
             return Err(invalid(format!("unknown option {arg:?}")));
@@ -135,6 +155,8 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
         limit,
         max_components,
         report_every,
+        top_components,
+        dump_top,
     }))
 }
 
@@ -171,6 +193,78 @@ fn format_prospective_counts(posterior: &ExactDfaPriorPosterior, byte: u8) -> St
         .join(",")
 }
 
+fn write_top_components(
+    posterior: &ExactDfaPriorPosterior,
+    limit: usize,
+    path: &Path,
+) -> io::Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+
+    let diagnostics = posterior.diagnostics();
+    let retained_fraction_lower = 1.0 - diagnostics.omitted_posterior_mass_upper;
+    let mut writer = BufWriter::new(File::create(path)?);
+    writeln!(
+        writer,
+        "# KRAFT exact DFA posterior sufficient-state aggregates"
+    )?;
+    writeln!(writer, "# max_states={}", posterior.max_states())?;
+    writeln!(
+        writer,
+        "# omitted_posterior_mass_upper={:.12}",
+        diagnostics.omitted_posterior_mass_upper
+    )?;
+    writeln!(
+        writer,
+        "# rank\tN\tretained_mass\tfull_mass_lower\twithin_N_mass\tcurrent_state\tdiscovered_states\ttransitions\temissions"
+    )?;
+
+    for (rank, hypothesis) in posterior.top_components(limit).into_iter().enumerate() {
+        let transitions = hypothesis
+            .component
+            .assigned_transitions
+            .iter()
+            .map(|edge| format!("{}:{:02x}>{}", edge.source, edge.byte, edge.destination))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        let emissions = hypothesis
+            .component
+            .emissions
+            .iter()
+            .map(|state| {
+                let counts = state
+                    .counts
+                    .iter()
+                    .map(|&(byte, count)| format!("{byte:02x}={count}"))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!("{}[total={};{}]", state.state, state.total, counts)
+            })
+            .collect::<Vec<_>>()
+            .join("|");
+
+        writeln!(
+            writer,
+            "{}\t{}\t{:.12}\t{:.12}\t{:.12}\t{}\t{}\t{}\t{}",
+            rank + 1,
+            hypothesis.states,
+            hypothesis.retained_posterior_mass,
+            hypothesis.retained_posterior_mass * retained_fraction_lower,
+            hypothesis.within_class_posterior_mass,
+            hypothesis.component.current_state,
+            hypothesis.component.discovered_states,
+            transitions,
+            emissions,
+        )?;
+    }
+
+    writer.flush()
+}
+
 fn run(args: &Args) -> io::Result<()> {
     let input = File::open(&args.path)?;
     let mut reader = BufReader::new(input).take(args.limit);
@@ -194,6 +288,7 @@ fn run(args: &Args) -> io::Result<()> {
     );
     println!("limit_bytes: {}", args.limit);
     println!("max_components: {}", args.max_components);
+    println!("top_components: {}", args.top_components);
     println!(
         "omitted_prior_mass_initial: {:.12}",
         posterior.omitted_prior_mass_upper()
@@ -292,6 +387,11 @@ fn run(args: &Args) -> io::Result<()> {
         "retained_to_full_kl_upper_nats: {:.12}",
         diagnostics.retained_to_full_kl_upper_nats
     );
+    if let Some(path) = &args.dump_top {
+        write_top_components(&posterior, args.top_components, path)?;
+        println!("top_posterior_dump: {:?}", path);
+        println!("top_posterior_components: {}", args.top_components);
+    }
     println!("evaluation_seconds: {:.6}", started.elapsed().as_secs_f64());
 
     Ok(())
