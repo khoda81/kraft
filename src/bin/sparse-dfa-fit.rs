@@ -309,7 +309,7 @@ fn top_visited_keys(candidate: &Candidate, limit: usize) -> Vec<(u16, u8, u64)> 
             }
         })
         .collect::<Vec<_>>();
-    visited.sort_by(|left, right| right.2.cmp(&left.2));
+    visited.sort_by_key(|item| std::cmp::Reverse(item.2));
     visited.truncate(limit);
     visited
 }
