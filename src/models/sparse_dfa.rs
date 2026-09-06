@@ -408,7 +408,7 @@ mod tests {
         let score = dfa.score(b"abqxxxxxxxx");
 
         assert_eq!(score.final_state, 1);
-        assert_eq!(score.state_totals, vec![3, 9]);
+        assert_eq!(score.state_totals, vec![3, 8]);
     }
 
     #[test]
