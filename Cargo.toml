@@ -1,0 +1,14 @@
+[package]
+name = "kraft"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Compute-aware Bayesian program mixtures, starting with finite-state predictors"
+repository = "https://github.com/khoda81/kraft"
+publish = false
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[profile.release]
+debug = 1
