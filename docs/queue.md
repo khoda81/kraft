@@ -8,10 +8,11 @@ Updated: 2026-09-06. Work from the first unblocked item. `[ ]` is pending, `[x]`
 - [x] B0 — Implement the user's generic model/distribution interface, streaming byte coding evaluator, local-file CLI, and simple baselines. See [harness](harness.md).
 - [x] M0 — Implement the generic two-learner Bayesian mixture and higher-is-better coding-ratio metric. CI run 34035684830 passed on Rust 1.85.1 and stable 1.98.1.
 - [ ] B1 — Complete the enwik8 baseline campaign. **Partial:** the user's million-byte unigram runs on Rust 1.85.0 and 1.98.1 are [recorded](experiments/B1-enwik8-baseline.md). Remaining: input hash/environment metadata and full-file uniform/unigram results. **Depends on local dataset access.**
-- [ ] Q1 — Specify the exact tiny finite-state family. Deliverable: a decision record covering prediction/transition order, emission law, start state, finite bounds, prior, and a hand-computed one-state example. **No dependency.**
-- [ ] Q2 — Implement scalar models and exhaustive mixture; add independent E0 checks. **Depends on Q1.** Done when hand calculations and sequence marginal likelihood identities pass.
+- [x] Q1 — Specify the exact tiny finite-state family. The fixed-N transition-table prior, prediction/update order, statewise Dirichlet-1/2 emissions, and exact state-label quotients are recorded in [E0](experiments/E0-partial-dfa-posterior.md). The N = 1 identity is the byte KT unigram. A cross-N self-delimiting code remains Q5 rather than part of this conditional fixed-N family.
+- [x] Q2 — Implement the scalar exact partial-DFA mixture and independent E0 checks. Tests cover the N = 1 KT identity, normalized predictions, unused-label multiplicity, quotient evidence agreement, and vector-versus-persistent short-prefix parity.
+- [x] Q2b — Replace per-component transition and emission clones with persistent parent-linked arenas; add physical-node, payload, RSS, and timing diagnostics. [E0b](experiments/E0-persistent-dfa-state.md) records a 76.41% byte-22 payload reduction and a byte-26 / 9.29-million-component run.
 - [ ] Q3 — Extend the existing byte runner with automatic manifests and synthetic binary generators for E0. Byte evaluation/CLI is complete under B0; generators/manifests remain pending. **Depends on Q2 for E0 integration.** Done when a clean checkout reproduces a synthetic run with manifest and per-step metrics.
-- [ ] Q4 — Run and document E0; update status with evidence and failure cases. **Depends on Q2–Q3.**
+- [ ] Q4 — Complete the planned synthetic E0 campaign. **Partial:** the local enwik8 exact-growth, quotient, and persistent-state experiments are recorded in [E0](experiments/E0-partial-dfa-posterior.md) and [E0b](experiments/E0-persistent-dfa-state.md). Synthetic generators/manifests from Q3 remain pending.
 
 ## Next
 
@@ -20,6 +21,7 @@ Updated: 2026-09-06. Work from the first unblocked item. `[ ]` is pending, `[x]`
 - [ ] Q7 — Implement explicit budget accounting, late-admission replay, and scheduler baselines. **Depends on Q4–Q5.**
 - [ ] Q8 — Implement finite frontier bounds and compare E3 to exact posterior/predictions. **Depends on Q7.**
 - [ ] Q9 — Profile and benchmark CPU batching (E4). **Depends on Q8.**
+- [ ] Q9b — If exact fixed-N inference remains a priority, specify a weighted decision/arithmetic DAG that can reuse computation across transition assignments. Preserve exact posterior semantics and compare against the persistent-leaf oracle before replacing it. **Depends on E0b; independent of approximate scheduling.**
 
 ## Later / gated
 

@@ -1,5 +1,16 @@
 # Research log
 
+## 2026-09-06 — Persistent exact partial-DFA state
+
+**Goal:** quantify how much of the exact N = 2 posterior's memory growth came from cloning historical transition and emission state into every branch.
+
+**Work:** replaced per-component edge vectors with immutable eight-byte transition nodes in a `u32`-indexed parent-linked arena. After a transition-only measurement showed cloned sparse emission statistics dominating payload, applied the same representation to emission observations and packed the common small-N logical-to-storage state mapping inline. Compact component fingerprints are only lookup accelerators; collision resolution compares semantic transition and emission contents through the arenas. Predictive canonicalization changes logical mappings without rebuilding shared histories. Added arena-node/RSS diagnostics and a vector-backed test oracle covering both quotient modes, sequential probabilities, evidence, component counts, retention, and coding ratios (D016).
+
+**Results:** at the existing byte-22 / 1,032,192-component point, the payload estimate fell from 457.310 MB to 107.872 MB, a 76.41% reduction. The 20,840,448 logical transition records across leaves used 2,064,382 transition nodes; emission statistics used 1,205,503 update nodes. With a ten-million guard, both discovery and predictive quotients reached byte 26 / 9,289,728 components and stopped before byte 27's 10,838,016 prospective children. Discovery used 1,071.514 MB estimated payload and 1,809.519 MB sampled RSS. Predictive produced the same evidence-derived results and component count but was slower. See [E0b](experiments/E0-persistent-dfa-state.md).
+
+**Interpretation:** duplicated physical histories were a large but not fundamental part of the explosion. Persistent storage permits roughly nine times the byte-22 leaf count in under 2 GB RSS, while exact retention still requires 6.21 million leaves at epsilon = 0.01 nat. Component count and leaf-wise CPU are now the limiting mechanisms. A weighted decision/arithmetic DAG is a possible separate next experiment; it was not implemented.
+
+
 ## 2026-09-06 — Predictive sufficient-state quotient
 
 **Observation:** the first N=2 discovery-quotient enwik8 run reached 1,032,192 exact components after only 22 bytes and required 864,578 components for epsilon=0.01 nat (1,013,545 for epsilon=0.001). The user noted that paths differing only by state naming should not be distinct hypotheses, motivating a stronger exact quotient.

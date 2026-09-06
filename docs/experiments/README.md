@@ -2,11 +2,11 @@
 
 The byte harness is implemented and tested; B1 is **partially run**. The [initial enwik8 prefix record](B1-enwik8-baseline.md) captures two user-reported unigram runs with equal printed coding costs across Rust 1.85.0 and 1.98.1. Full-file uniform/unigram results and input metadata remain pending. See [harness](../harness.md) for commands and scoring rules.
 
-The finite-mixture campaigns below are also **planned, not run**; they remain a separate correctness/search track. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
+The fixed-N partial-DFA [E0 oracle](E0-partial-dfa-posterior.md) and its [persistent-state follow-up](E0-persistent-dfa-state.md) are implemented and measured on the first 26 enwik8 bytes. The broader synthetic E0 campaign and E1–E6 remain planned. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
 
 | ID | Question | Comparison / measurements | Gate |
 | --- | --- | --- | --- |
-| E0 | Is the finite-mixture implementation correct? | Hand-computed one-state examples; brute-force tiny binary transition families; batch marginal likelihood versus sequential prediction product | Agreement within declared `f64` tolerance; normalized predictions and correct timing |
+| E0 | Is the finite-mixture implementation correct? **Partially run:** exact byte-DFA oracle, state-label quotients, and persistent representation are validated; planned synthetic generators remain pending. | One-state identity, vector-oracle parity, exact quotient agreement, enwik8 prefix growth | Agreement within declared `f64` tolerance; normalized predictions and correct timing |
 | E1 | Does the description prior behave as specified? | Enumerated code lengths and Kraft sums; normalized finite prior; ordered search versus exhaustive posterior | Verify code injectivity/prefix-freeness or use an explicitly finite categorical prior; no accidental claim of a universal prior |
 | E2 | How much work is representation redundancy costing? | Labeled tables versus canonical representatives with summed original mass; count unreachable/equivalent structures | Preserve oracle predictions when preserving prior mass; quantify runtime/memory tradeoff |
 | E3 | Which scheduler best approximates the oracle at fixed compute? | Exhaustive/round-robin/mass/mass-per-cost; several geometric budgets; exact omitted mass, predictive loss, KL and certificate tightness | Valid certificates on every checked prefix; report quality-cost curves even if no scheduler wins |

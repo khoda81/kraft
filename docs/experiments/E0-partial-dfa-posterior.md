@@ -108,13 +108,15 @@ Each row reports:
 - posterior effective component count exp(H);
 - largest component posterior mass;
 - total explicit transition assignments;
+- physical transition-arena and emission-arena node counts, plus nodes per component;
 - total nonzero emission counters;
 - approximate component payload MB, excluding HashMap bucket overhead;
+- Linux process RSS when `/proc/self/status` is available;
 - coding ratio versus uniform, higher is better;
 - coding ratio versus the byte KT baseline, higher is better;
 - elapsed wall time.
 
-The payload figure is intentionally labeled an estimate and is not a process RSS measurement.
+The payload figure is intentionally labeled an estimate and is distinct from process RSS.
 
 ## First decision gate
 
@@ -142,3 +144,9 @@ User-run result on the first enwik8 bytes, N = 2, discovery quotient, epsilon = 
 At epsilon = 0.001 nat, 1,013,545 of 1,032,192 components (98.19%) were required.
 
 This establishes the discovery quotient as the baseline. The predictive quotient ablation asks whether a substantial fraction of those million components are merely state-name/isomorphism redundancy. Because both quotients are exact, coding cost and evidence should remain unchanged; only representation size and runtime may differ.
+
+## Predictive-quotient result and persistent follow-up
+
+The first predictive-quotient run produced exactly the same 1,032,192 components at byte 22, with `merged_children_last = 0`. The predictive/evidence results matched discovery, so discovered-state naming was not the source of the observed component growth.
+
+The representation follow-up is recorded separately in [E0b](E0-persistent-dfa-state.md). Persistent transition and emission histories preserve the exact model while reducing the byte-22 payload estimate from 457.310 MB to 107.872 MB. With the guard raised to ten million, both quotients reached byte 26 / 9,289,728 components before stopping ahead of byte 27. The posterior leaf count and leaf-wise CPU remain exponential.

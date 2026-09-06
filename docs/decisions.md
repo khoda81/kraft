@@ -60,3 +60,11 @@ The user's commit 3c6d09f removed rust-toolchain.toml after D011. CI therefore t
 **Accepted:** use Rust 1.98.1 everywhere for active development instead of retaining Rust 1.85 as a compatibility target. `Cargo.toml` now declares `rust-version = "1.98.1"`, `rust-toolchain.toml` pins 1.98.1 with rustfmt and Clippy, and CI tests the pinned toolchain plus current stable.
 
 This supersedes D014 and the compatibility portion of D011. Historical experiment records that happened to use Rust 1.85 remain historical evidence and are not rewritten.
+
+## 2026-09-06 — D016: persistent histories preserve the exact fixed-N posterior
+
+**Accepted for the exact oracle:** represent transition assignments and emission observations as immutable parent-linked nodes in append-only `u32`-indexed arenas. A posterior component stores history heads, lengths, semantic fingerprints, the current logical state, and the logical-to-storage state mapping. Branch children append only their new information and share the parent's physical history.
+
+Arena node identity is not model identity. Compact fingerprints accelerate component-map lookup, but collisions are resolved by exact logical transition and emission-content comparison. Predictive state canonicalization reorders logical state mappings without rewriting historical arena nodes. Linear history lookup is accepted for the current short-prefix oracle; a cache requires measured justification.
+
+This changes representation and diagnostics only. It does not change the conditional uniform transition prior, Dirichlet-1/2 emission law, prequential order, quotient semantics, posterior masses, or epsilon-retention calculation. Persistent emissions were included after a transition-only byte-22 measurement showed that cloned emission vectors had become the dominant estimated payload. No pruning or weighted decision DAG is part of this decision.

@@ -1,7 +1,7 @@
 use std::{
     env,
     ffi::OsString,
-    fs::File,
+    fs::{self, File},
     io::{self, BufReader, Read},
     path::PathBuf,
     process::ExitCode,
@@ -19,6 +19,7 @@ const HELP: &str = "Usage: dfa-posterior <file> [--states N] [--quotient discove
 Exact oracle over all labeled byte-input DFAs with a fixed state count.
 Transitions are instantiated lazily and unused state labels are canonicalized.
 Each state uses an integrated Dirichlet-1/2 byte predictor.
+Transition assignments and emission observations use persistent shared arenas.
 
 Defaults:
   --states 2
@@ -141,6 +142,13 @@ fn coding_ratio_uniform(bytes: u64, total_nats: f64) -> f64 {
     bytes as f64 * 8.0 * std::f64::consts::LN_2 / total_nats
 }
 
+fn process_rss_mb() -> Option<f64> {
+    let status = fs::read_to_string("/proc/self/status").ok()?;
+    let line = status.lines().find(|line| line.starts_with("VmRSS:"))?;
+    let kibibytes: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kibibytes as f64 * 1024.0 / 1_000_000.0)
+}
+
 fn run(args: &Args) -> io::Result<()> {
     let input = File::open(&args.path)?;
     let mut reader = BufReader::new(input).take(args.limit);
@@ -167,7 +175,7 @@ fn run(args: &Args) -> io::Result<()> {
     println!("max_components: {}", args.max_components);
     println!();
     println!(
-        "step\tbyte\tcomponents\tretain_eps\tretain_fraction\tretain_mass\tkl_nats\teffective_components\ttop_mass\tassigned_edges\tnonzero_counts\tpayload_MB\tcoding_ratio_uniform\tcoding_ratio_kt\telapsed_s"
+        "step\tbyte\tcomponents\tretain_eps\tretain_fraction\tretain_mass\tkl_nats\teffective_components\ttop_mass\tassigned_edges\ttransition_nodes\ttransition_nodes_per_component\temission_nodes\temission_nodes_per_component\tnonzero_counts\tpayload_MB\trss_MB\tcoding_ratio_uniform\tcoding_ratio_kt\telapsed_s"
     );
 
     let mut buffer = [0_u8; 64 * 1024];
@@ -217,10 +225,13 @@ fn run(args: &Args) -> io::Result<()> {
                 let retain_fraction =
                     diagnostics.retained_components as f64 / diagnostics.components as f64;
                 let payload_mb = diagnostics.payload_bytes_estimate as f64 / 1_000_000.0;
+                let rss_mb = process_rss_mb()
+                    .map(|value| format!("{value:.3}"))
+                    .unwrap_or_else(|| "n/a".to_owned());
                 let coding_ratio_uniform = coding_ratio_uniform(bytes, total_nats);
                 let coding_ratio_kt = kt_total_nats / total_nats;
                 println!(
-                    "{}\t{}\t{}\t{}\t{:.9}\t{:.12}\t{:.12}\t{:.3}\t{:.12}\t{}\t{}\t{:.3}\t{:.9}\t{:.9}\t{:.6}",
+                    "{}\t{}\t{}\t{}\t{:.9}\t{:.12}\t{:.12}\t{:.3}\t{:.12}\t{}\t{}\t{:.6}\t{}\t{:.6}\t{}\t{:.3}\t{}\t{:.9}\t{:.9}\t{:.6}",
                     bytes,
                     byte,
                     diagnostics.components,
@@ -231,8 +242,13 @@ fn run(args: &Args) -> io::Result<()> {
                     diagnostics.effective_components,
                     diagnostics.top_component_mass,
                     diagnostics.assigned_transitions,
+                    diagnostics.transition_arena_nodes,
+                    diagnostics.transition_nodes_per_component,
+                    diagnostics.emission_arena_nodes,
+                    diagnostics.emission_nodes_per_component,
                     diagnostics.nonzero_emission_counts,
                     payload_mb,
+                    rss_mb,
                     coding_ratio_uniform,
                     coding_ratio_kt,
                     started.elapsed().as_secs_f64(),
@@ -263,10 +279,32 @@ fn run(args: &Args) -> io::Result<()> {
         );
         println!("retained_mass: {:.12}", diagnostics.retained_mass);
         println!("retained_kl_nats: {:.12}", diagnostics.retained_kl_nats);
+        println!("assigned_transitions: {}", diagnostics.assigned_transitions);
+        println!(
+            "transition_arena_nodes: {}",
+            diagnostics.transition_arena_nodes
+        );
+        println!(
+            "transition_nodes_per_component: {:.6}",
+            diagnostics.transition_nodes_per_component
+        );
+        println!("emission_arena_nodes: {}", diagnostics.emission_arena_nodes);
+        println!(
+            "emission_nodes_per_component: {:.6}",
+            diagnostics.emission_nodes_per_component
+        );
+        println!(
+            "nonzero_emission_counts: {}",
+            diagnostics.nonzero_emission_counts
+        );
         println!(
             "payload_estimate_MB: {:.3}",
             diagnostics.payload_bytes_estimate as f64 / 1_000_000.0
         );
+        match process_rss_mb() {
+            Some(rss_mb) => println!("process_rss_MB: {rss_mb:.3}"),
+            None => println!("process_rss_MB: n/a"),
+        }
     }
     println!("evaluation_seconds: {:.6}", started.elapsed().as_secs_f64());
 
