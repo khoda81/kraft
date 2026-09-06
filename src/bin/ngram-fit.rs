@@ -23,7 +23,6 @@ use std::{
     time::Instant,
 };
 
-const ALPHABET: usize = 256;
 const JEFFREYS_ALPHA: f64 = 0.5;
 const JEFFREYS_TOTAL: f64 = 128.0;
 const LN_2: f64 = std::f64::consts::LN_2;
@@ -144,11 +143,12 @@ fn parse_orders(text: &str) -> io::Result<Vec<usize>> {
             .map_err(|_| invalid("--orders must be a comma-separated list of integers"))?;
         orders.push(value);
     }
-    orders.sort_unstable();
-    orders.dedup();
     if orders.is_empty() {
         return Err(invalid("--orders must contain at least one value"));
     }
+    orders.push(0);
+    orders.sort_unstable();
+    orders.dedup();
     Ok(orders)
 }
 
@@ -239,7 +239,7 @@ fn position_bits(data_len: usize) -> io::Result<u32> {
     let bits = usize::BITS - (data_len - 1).leading_zeros();
     if 2 * bits + 8 > 64 {
         return Err(invalid(
-            "packed exact context-ID scorer currently requires input shorter than 2^28 bytes",
+            "packed exact context-ID scorer currently requires input no larger than 2^28 bytes",
         ));
     }
     Ok(bits)
@@ -272,12 +272,7 @@ fn uniform_score(order: usize, data_len: usize, seconds: f64) -> Score {
     }
 }
 
-fn build_entries(
-    data: &[u8],
-    order: usize,
-    context_ids: &[u32],
-    position_bits: u32,
-) -> Vec<u64> {
+fn build_entries(data: &[u8], order: usize, context_ids: &[u32], position_bits: u32) -> Vec<u64> {
     let mut entries = Vec::with_capacity(data.len().saturating_sub(order));
     for position in order..data.len() {
         let context = u64::from(context_ids[position]);
@@ -475,12 +470,7 @@ fn evaluate_orders(data: &[u8], orders: &[usize], gamma: &GammaCache) -> io::Res
     Ok(scores)
 }
 
-fn dump_best_model(
-    data: &[u8],
-    best: &Score,
-    path: &Path,
-    gamma: &GammaCache,
-) -> io::Result<()> {
+fn dump_best_model(data: &[u8], best: &Score, path: &Path, gamma: &GammaCache) -> io::Result<()> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
     {
@@ -707,6 +697,7 @@ mod tests {
     #[test]
     fn position_packing_supports_enwik8() {
         assert_eq!(position_bits(100_000_000).unwrap(), 27);
-        assert!(position_bits(1_usize << 28).is_err());
+        assert_eq!(position_bits(1_usize << 28).unwrap(), 28);
+        assert!(position_bits((1_usize << 28) + 1).is_err());
     }
 }
