@@ -24,16 +24,20 @@ Each state predicts the next byte with an integrated symmetric Dirichlet-1/2 cat
 
 Prediction happens before the observation. Then the state's byte count is updated and the transition for the observed (state, byte) pair is followed.
 
-## Canonical lazy branching
+## Exact state-label quotients
 
-When an unassigned transition is required and k canonical states have been discovered:
+When an unassigned transition is required and k states have been discovered:
 
-- each existing canonical destination has prior branch mass 1/N;
+- each existing destination has prior branch mass 1/N;
 - if k < N, all N-k unused labels are aggregated into one new-state branch with prior mass (N-k)/N.
 
-The new state receives the next canonical index. This exactly sums state-label permutations that are still observationally symmetric.
+Two exact quotient modes are available.
 
-Components with identical canonical transition assignments, current state, and emission sufficient statistics are merged by adding their probability mass in log space.
+discovery preserves the original first-discovery state identities. It removes unused-label permutations but continues to distinguish already discovered states by historical name.
+
+predictive additionally forgets those historical names after every observation. It canonicalizes the complete future-relevant sufficient state — current state, per-state emission sufficient statistics, and assigned transition constraints — under every permutation of discovered state identities, with the current state distinguished. Isomorphic sufficient states are merged by summing their probability mass.
+
+Both modes represent the same Bayesian posterior and therefore must have identical predictive probabilities and marginal evidence. predictive can only use the same or fewer explicit components. The current oracle brute-forces state permutations and limits predictive mode to N <= 8; this is intended for exact small-N experiments, not as the eventual graph-isomorphism implementation.
 
 ## Epsilon retention diagnostic
 
@@ -59,6 +63,7 @@ The dedicated binary has intentionally conservative defaults:
 This means:
 
     states = 2
+    quotient = predictive
     limit = 64 bytes
     epsilon = 0.01 nat
     max_components = 2,000,000
@@ -94,7 +99,9 @@ The binary stops before an observation whose unmerged branch count could exceed 
 
 Each row reports:
 
-- exact canonical posterior component count;
+- exact quotient posterior component count;
+- number of children generated before exact merging on the latest update;
+- number of generated children merged away exactly;
 - minimal retained component count for epsilon;
 - retained fraction of component count;
 - retained posterior mass and resulting forward KL;
@@ -120,3 +127,18 @@ at useful epsilon values.
 If this rapidly becomes small, implementing a certified frontier/replay pruner is justified.
 
 If it remains near one while exact components explode, raw DFA-table priors are computationally unattractive and the next model family should introduce structured transition descriptions such as product-shift or small programs.
+
+
+## First discovery-quotient result
+
+User-run result on the first enwik8 bytes, N = 2, discovery quotient, epsilon = 0.01 nat:
+
+- reached 1,032,192 exact components after 22 bytes;
+- the next observation had 2,064,384 prospective unmerged children and hit the 2,000,000 guard;
+- 864,578 components (83.76%) were needed to retain mass 0.990049845681 and stay below 0.01 nat forward KL;
+- approximate component payload was 457.310 MB, excluding HashMap bucket overhead;
+- coding ratio versus KT was 0.992364462196.
+
+At epsilon = 0.001 nat, 1,013,545 of 1,032,192 components (98.19%) were required.
+
+This establishes the discovery quotient as the baseline. The predictive quotient ablation asks whether a substantial fraction of those million components are merely state-name/isomorphism redundancy. Because both quotients are exact, coding cost and evidence should remain unchanged; only representation size and runtime may differ.
