@@ -27,7 +27,9 @@ use std::{error::Error, fmt};
 
 use crate::{Distribution, Model};
 
-use super::partial_dfa::{DfaQuotient, ExactPartialDfaMixture, PartialDfaError};
+use super::partial_dfa::{
+    DfaPosteriorComponent, DfaQuotient, ExactPartialDfaMixture, PartialDfaError,
+};
 
 const LN_2: f64 = std::f64::consts::LN_2;
 
@@ -70,6 +72,17 @@ pub struct DfaStateCountPosterior {
     pub retained_posterior_mass: f64,
     /// Number of canonical transition/emission posterior components in this class.
     pub components: usize,
+}
+
+/// One high-mass sufficient-state component across the evaluated DFA classes.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DfaPriorPosteriorComponent {
+    pub states: u16,
+    /// Posterior mass conditioned on N<=max_states.
+    pub retained_posterior_mass: f64,
+    /// Posterior mass conditioned on this fixed-N class.
+    pub within_class_posterior_mass: f64,
+    pub component: DfaPosteriorComponent,
 }
 
 /// Diagnostics for the exact evaluated prefix of the unbounded DFA prior.
@@ -173,6 +186,43 @@ impl ExactDfaPriorPosterior {
             .iter()
             .map(|class| class.prospective_child_count(byte))
             .sum()
+    }
+
+    /// Highest-mass exact sufficient-state components across evaluated classes.
+    ///
+    /// Masses are posterior probabilities conditioned on N<=max_states.
+    pub fn top_components(&self, limit: usize) -> Vec<DfaPriorPosteriorComponent> {
+        if limit == 0 {
+            return Vec::new();
+        }
+
+        let ln_active_joint_mass = self.ln_active_joint_mass();
+        let mut candidates = Vec::new();
+
+        for class in &self.classes {
+            let states = class.state_count();
+            let ln_class_joint =
+                Self::ln_state_count_prior(states) + class.ln_evidence();
+            let class_posterior_mass = (ln_class_joint - ln_active_joint_mass).exp();
+
+            for component in class.top_components(limit) {
+                candidates.push(DfaPriorPosteriorComponent {
+                    states,
+                    retained_posterior_mass: class_posterior_mass
+                        * component.conditional_posterior_mass,
+                    within_class_posterior_mass: component.conditional_posterior_mass,
+                    component,
+                });
+            }
+        }
+
+        candidates.sort_by(|left, right| {
+            right
+                .retained_posterior_mass
+                .total_cmp(&left.retained_posterior_mass)
+        });
+        candidates.truncate(limit);
+        candidates
     }
 
     /// Per-state-count prospective child counts.
