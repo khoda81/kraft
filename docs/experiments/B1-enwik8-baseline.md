@@ -38,10 +38,10 @@ Source: user-pasted CLI summaries. Both runs printed identical coding metrics to
 | Bytes scored | 1,000,000 | 1,000,000 |
 | Total nats | 3507734.978874585126 | 3507734.978874585126 |
 | Total bits | 5060591.858775116503 | 5060591.858775116503 |
-| Bits/byte | 5.060591858775 | 5.060591858775 |
+| Coding ratio vs uniform | 1.580842759751 | 1.580842759751 |
 | Evaluation seconds | 0.019772 | 0.027971 |
 
-The analytic uniform-byte reference for this prefix is 8,000,000 bits (8 bits/byte); a uniform corpus run has not been supplied. The measured unigram cost is approximately 36.74% lower than that analytic reference. This excludes coding overhead such as file length/EOF and is not a measured compression ratio from an encoder.
+The analytic uniform-byte reference for this prefix is 8,000,000 bits; a uniform corpus run has not been supplied. Dividing that reference cost by the measured unigram cost gives a coding ratio of approximately 1.58084. This is log-base invariant and, relative to uniform, is the ideal compression ratio for the fixed byte stream. It excludes coding overhead such as file length/EOF and is not a measured encoded-file ratio from an actual compressor.
 
 ## Interpretation and limitations
 
