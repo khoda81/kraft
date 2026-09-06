@@ -4,7 +4,7 @@
 
 For each symbol: form a prediction from the previously observed prefix, score the revealed symbol, then update model weights and states. Hyperparameters chosen with the evaluation stream invalidate a clean held-out claim. Fix exploratory/tuning streams separately from final reporting streams.
 
-The initial benchmark objective is **total prequential coding cost on the same raw byte stream**, as requested by the user. Report total nats, total bits, and bits per byte. Timing is secondary and does not alter this objective. When comparing future schedulers, additionally compare at matched compute budgets; do not hide search cost behind model count.
+The initial benchmark objective is **total prequential coding cost on the same raw byte stream**, as requested by the user. Report total nats, total bits, and coding ratio against a stated baseline. Coding ratio is `baseline_cost / model_cost`, so higher is better and the value is invariant to log base. Against the uniform-byte baseline it equals the ideal compression ratio. Timing is secondary and does not alter this objective. When comparing future schedulers, additionally compare at matched compute budgets; do not hide search cost behind model count.
 
 ## Baselines
 
@@ -20,7 +20,7 @@ The initial benchmark objective is **total prequential coding cost on the same r
 
 | Dimension | Required measurements |
 | --- | --- |
-| Prediction | Cumulative bits, bits/symbol, regret to exact mixture at matching prefixes |
+| Prediction | Cumulative coding cost, coding ratio versus stated baselines, regret to exact mixture at matching prefixes |
 | Inference | Exact retained/omitted mass when available; stated KL direction; predictive total variation |
 | Search | Models considered/admitted, frontier size, prior mass coverage, duplicate fraction |
 | Compute | Model-symbol updates, replay steps, proposal/enumeration work, wall time, peak memory |
