@@ -2,8 +2,10 @@
 //!
 //! The prior is defined on all finite labeled DFAs:
 //!
-//!     P(N) = 2^-N, N >= 1
-//!     P(delta | N) = N^(-256N)
+//! ```text
+//! P(N) = 2^-N, N >= 1
+//! P(delta | N) = N^(-256N)
+//! ```
 //!
 //! where the start state is fixed to label zero and every transition destination
 //! is independently uniform over the N labels. Each state's byte-emission
@@ -14,7 +16,9 @@
 //! the declared unbounded prior. Since data likelihood is at most one, its
 //! unnormalized posterior mass is always bounded by
 //!
-//!     sum_{N>max_states} 2^-N = 2^-max_states.
+//! ```text
+//! sum_{N>max_states} 2^-N = 2^-max_states.
+//! ```
 //!
 //! This yields a certified one-sided KL bound between the retained posterior
 //! conditioned on N<=max_states and the full unbounded DFA posterior.
