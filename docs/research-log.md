@@ -6,7 +6,7 @@
 
 **Work:** completed `Mixture<A, B>` with equal or explicit prior log odds, stable log-space predictive marginalization, posterior odds updates from `ln P_A - ln P_B`, and updates to both component learners. Added independent tests for equal-prior averaging, likelihood-ratio odds updates, the sequential Bayesian marginal-likelihood identity, and exact-zero support behavior. Replaced bits-per-byte with coding ratio `baseline_cost / model_cost`; the CLI now reports the uniform-relative ratio. Updated B1's recorded prefix metric accordingly.
 
-**Validation:** pending repository CI on `feat/mixture-model`; no new corpus experiment was run.
+**Validation:** GitHub CI run 34035684830 passed formatting, Clippy with warnings denied, tests, rustdoc, and documentation links on Rust 1.85.1 and stable 1.98.1. No new corpus experiment was run.
 
 **Maintenance:** commit `3c6d09f` removed the development toolchain file, so this branch also repairs CI to use MSRV plus current stable (D014).
 
