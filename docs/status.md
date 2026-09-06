@@ -4,7 +4,7 @@ Updated: 2026-09-06 (UTC).
 
 ## Stage
 
-Byte harness ready, before the first dataset benchmark. No empirical conclusions about KRAFT's predictive quality, efficiency, or GPU suitability have been established.
+Byte harness ready; the first user-reported enwik8 prefix baseline is recorded. Full-corpus comparison and finite-state mixture experiments remain pending.
 
 ## Implemented
 
@@ -20,7 +20,7 @@ The validation and remote setup outcome is recorded in the [bootstrap log](resea
 
 ## Immediate next step
 
-**B1: run the byte baselines on the local enwik8 file**, starting with a short prefix; record the exact input and total coding costs. The request calls the benchmark WikiText, while the supplied paths are enwik8/enwik9, so preserve the actual dataset name. Q1 (finite-state family specification) remains next model-design work, independent of the harness.
+**B1: complete the full-file byte-baseline comparison and input metadata.** The user has run the unigram on a million-byte prefix under two compilers; see the [result record](experiments/B1-enwik8-baseline.md). The request calls the benchmark WikiText, while the supplied paths are enwik8/enwik9, so preserve the actual dataset name. Q1 (finite-state family specification) remains next model-design work, independent of the harness.
 
 ## Open questions / blockers
 
@@ -31,4 +31,4 @@ The validation and remote setup outcome is recorded in the [bootstrap log](resea
 
 ## Evidence so far
 
-The tests concern numerical bookkeeping and harness correctness, including analytic sequence likelihoods and scoring order. They are not dataset research experiments. The log-base conversion and finite-tail bounds in [theory](theory.md) are algebraic statements under stated assumptions, not measured findings.
+The [B1 prefix record](experiments/B1-enwik8-baseline.md) contains the first measured unigram coding cost and its provenance/limitations. Tests separately cover numerical bookkeeping and harness correctness. The log-base conversion and finite-tail bounds in [theory](theory.md) are algebraic statements under stated assumptions, not measured findings.

@@ -1,5 +1,15 @@
 # Research log
 
+## 2026-09-06 — Toolchain update and first enwik8 prefix result
+
+**User work:** upgraded the development toolchain to Rust 1.98.1 and pushed `1fc543fef87e`; supplied unigram results for the first million enwik8 bytes under Rust 1.85.0 and 1.98.1.
+
+**Recorded:** [B1 prefix result](experiments/B1-enwik8-baseline.md), with equal printed coding metrics and explicit provenance/missing metadata. The two individual timings are not a controlled performance comparison. B1 remains partial.
+
+**Maintenance:** CI now reads the development pin and minimum supported version from their respective TOML files, tests those plus current stable, and formats with the development pin (D011).
+
+**Next:** complete B1 full-file outputs/input metadata; then continue finite-state model design.
+
 ## 2026-09-06 — Byte coding harness
 
 **Request:** implement a simple generic predict/observe model interface and score the local text dataset byte by byte, minimizing total coding cost. The user supplied paths to enwik8/enwik9; no dataset is available in this execution environment.
