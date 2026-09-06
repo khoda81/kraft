@@ -104,10 +104,7 @@ impl ExactDfaPriorPosterior {
     }
 
     /// Evaluate state-count classes 1..=max_states with an explicit exact quotient.
-    pub fn with_quotient(
-        max_states: u16,
-        quotient: DfaQuotient,
-    ) -> Result<Self, DfaPriorError> {
+    pub fn with_quotient(max_states: u16, quotient: DfaQuotient) -> Result<Self, DfaPriorError> {
         if max_states == 0 {
             return Err(DfaPriorError::ZeroMaxStates);
         }
@@ -142,9 +139,11 @@ impl ExactDfaPriorPosterior {
 
     /// Exact natural-log joint mass of the evaluated classes.
     pub fn ln_active_joint_mass(&self) -> f64 {
-        log_sum_exp(self.classes.iter().map(|class| {
-            Self::ln_state_count_prior(class.state_count()) + class.ln_evidence()
-        }))
+        log_sum_exp(
+            self.classes
+                .iter()
+                .map(|class| Self::ln_state_count_prior(class.state_count()) + class.ln_evidence()),
+        )
     }
 
     /// Total exact canonical components over all evaluated state-count classes.
@@ -309,10 +308,7 @@ mod tests {
         assert!((masses[1] - 2.0 / 7.0).abs() < 1e-14);
         assert!((masses[2] - 1.0 / 7.0).abs() < 1e-14);
         assert!((diagnostics.omitted_prior_mass_upper - 1.0 / 8.0).abs() < 1e-14);
-        assert!(
-            (diagnostics.retained_to_full_kl_upper_nats - (8.0_f64 / 7.0).ln()).abs()
-                < 1e-14
-        );
+        assert!((diagnostics.retained_to_full_kl_upper_nats - (8.0_f64 / 7.0).ln()).abs() < 1e-14);
     }
 
     #[test]
