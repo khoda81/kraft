@@ -603,7 +603,7 @@ fn run(args: &Args) -> io::Result<()> {
         SparseDfa::empty(1, DefaultTopology::Stay).map_err(|error| invalid(error.to_string()))?;
     let kt_nats = -kt.ln_evidence(&data);
     let uniform_nats = data.len() as f64 * 8.0 * LN_2;
-    let explored_log_mass = log_sum_exp(finalists.iter().map(Candidate::ln_joint));
+    let finalist_log_mass = log_sum_exp(finalists.iter().map(Candidate::ln_joint));
 
     println!();
     println!("bytes: {}", data.len());
@@ -611,14 +611,14 @@ fn run(args: &Args) -> io::Result<()> {
     println!("kt_coding_ratio_uniform: {:.12}", uniform_nats / kt_nats);
     println!();
     println!(
-        "rank\tN\ttopology\tK\tdata_nats\tprior_bits\tjoint_nats\tdata_ratio_uniform\tcertified_ratio_uniform\tdata_ratio_kt\tcertified_ratio_kt\texplored_posterior"
+        "rank\tN\ttopology\tK\tdata_nats\tprior_bits\tjoint_nats\tdata_ratio_uniform\tcertified_ratio_uniform\tdata_ratio_kt\tcertified_ratio_kt\tfinalist_relative_posterior"
     );
 
     for (rank, candidate) in finalists.iter().enumerate() {
         let data_nats = -candidate.ln_evidence;
         let prior_nats = -candidate.model.ln_prior();
         let joint_nats = data_nats + prior_nats;
-        let explored_posterior = (candidate.ln_joint() - explored_log_mass).exp();
+        let explored_posterior = (candidate.ln_joint() - finalist_log_mass).exp();
         println!(
             "{}\t{}\t{}\t{}\t{:.12}\t{:.6}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}",
             rank + 1,
