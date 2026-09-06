@@ -11,10 +11,7 @@ use std::{
 use kraft::{
     Distribution, Model,
     baselines::Kt,
-    models::{
-        dfa_prior::ExactDfaPriorPosterior,
-        partial_dfa::DfaQuotient,
-    },
+    models::{dfa_prior::ExactDfaPriorPosterior, partial_dfa::DfaQuotient},
 };
 
 const HELP: &str = "Usage: dfa-bayes <file> [options]
@@ -177,9 +174,8 @@ fn format_prospective_counts(posterior: &ExactDfaPriorPosterior, byte: u8) -> St
 fn run(args: &Args) -> io::Result<()> {
     let input = File::open(&args.path)?;
     let mut reader = BufReader::new(input).take(args.limit);
-    let mut posterior =
-        ExactDfaPriorPosterior::with_quotient(args.max_states, args.quotient)
-            .map_err(|error| invalid(error.to_string()))?;
+    let mut posterior = ExactDfaPriorPosterior::with_quotient(args.max_states, args.quotient)
+        .map_err(|error| invalid(error.to_string()))?;
     let mut kt = Kt::default();
 
     let mut total_nats = 0.0;
