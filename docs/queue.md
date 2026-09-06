@@ -11,6 +11,7 @@ Updated: 2026-09-06. Work from the first unblocked item. `[ ]` is pending, `[x]`
 - [x] Q1 — Specify the exact tiny finite-state family. The fixed-N transition-table prior, prediction/update order, statewise Dirichlet-1/2 emissions, and exact state-label quotients are recorded in [E0](experiments/E0-partial-dfa-posterior.md). The N = 1 identity is the byte KT unigram. A cross-N self-delimiting code remains Q5 rather than part of this conditional fixed-N family.
 - [x] Q2 — Implement the scalar exact partial-DFA mixture and independent E0 checks. Tests cover the N = 1 KT identity, normalized predictions, unused-label multiplicity, quotient evidence agreement, and vector-versus-persistent short-prefix parity.
 - [x] Q2b — Replace per-component transition and emission clones with persistent parent-linked arenas; add physical-node, payload, RSS, and timing diagnostics. [E0b](experiments/E0-persistent-dfa-state.md) records a 76.41% byte-22 payload reduction and a byte-26 / 9.29-million-component run.
+- [x] Q2c — Implement exact N = 2 joint-evidence evaluation as ADD weighted model counting; validate against complete transition-table enumeration and the leaf oracle through byte 22. [E0c](experiments/E0-symbolic-dfa-wmc.md) reaches byte 46 without posterior-leaf enumeration.
 - [ ] Q3 — Extend the existing byte runner with automatic manifests and synthetic binary generators for E0. Byte evaluation/CLI is complete under B0; generators/manifests remain pending. **Depends on Q2 for E0 integration.** Done when a clean checkout reproduces a synthetic run with manifest and per-step metrics.
 - [ ] Q4 — Complete the planned synthetic E0 campaign. **Partial:** the local enwik8 exact-growth, quotient, and persistent-state experiments are recorded in [E0](experiments/E0-partial-dfa-posterior.md) and [E0b](experiments/E0-persistent-dfa-state.md). Synthetic generators/manifests from Q3 remain pending.
 
@@ -21,7 +22,7 @@ Updated: 2026-09-06. Work from the first unblocked item. `[ ]` is pending, `[x]`
 - [ ] Q7 — Implement explicit budget accounting, late-admission replay, and scheduler baselines. **Depends on Q4–Q5.**
 - [ ] Q8 — Implement finite frontier bounds and compare E3 to exact posterior/predictions. **Depends on Q7.**
 - [ ] Q9 — Profile and benchmark CPU batching (E4). **Depends on Q8.**
-- [ ] Q9b — If exact fixed-N inference remains a priority, specify a weighted decision/arithmetic DAG that can reuse computation across transition assignments. Preserve exact posterior semantics and compare against the persistent-leaf oracle before replacing it. **Depends on E0b; independent of approximate scheduling.**
+- [ ] Q9b — Reduce exact ADD intermediate width using controlled variable-order and within-observation factor-scheduling/garbage-collection comparisons. Preserve E0c evidence and report live versus temporary nodes; byte 64 is the next gate. **Depends on E0c; independent of approximate scheduling.**
 
 ## Later / gated
 

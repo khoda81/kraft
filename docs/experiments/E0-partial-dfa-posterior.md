@@ -63,7 +63,7 @@ The dedicated binary has intentionally conservative defaults:
 This means:
 
     states = 2
-    quotient = predictive
+    quotient = discovery
     limit = 64 bytes
     epsilon = 0.01 nat
     max_components = 2,000,000

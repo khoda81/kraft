@@ -136,4 +136,4 @@ Arena node counts are allocated-node counts. An append-only arena could retain n
 
 ## Follow-up
 
-Persistent structural sharing is complete for transition assignments and emission observations. Do not optimize the history scans until profiling shows they dominate. The next research direction, if continued, is a weighted decision/arithmetic DAG that reuses computation across assignments; it is a separate representation of the same exact posterior and was intentionally not implemented here.
+Persistent structural sharing is complete for transition assignments and emission observations. Do not optimize the history scans until profiling shows they dominate. A weighted decision/arithmetic DAG that reuses computation across assignments was intentionally outside this experiment and is evaluated separately in [E0c](E0-symbolic-dfa-wmc.md).

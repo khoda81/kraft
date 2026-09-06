@@ -66,3 +66,39 @@ No general computable stopping certificate is claimed for unrestricted Turing pr
 State renaming, unreachable states, and different programs with identical predictions can consume search budget. Removing duplicate descriptions changes the effective function prior unless their prior masses are summed. E2 will explicitly distinguish description-level and function-level priors.
 
 Multiply-shift transitions may offer compact arithmetic and batching, but their formula, overflow semantics, representational coverage, and induced prior are open. They must not be treated as equivalent to all DFA tables without proof or measurement.
+
+## Hidden trajectories and exact DFA weighted model counting
+
+For a fixed N-state deterministic byte-input DFA and observed bytes `x_0:T-1`, introduce the hidden state trajectory `s_0:T` with fixed start `s_0 = 0`. A trajectory is compatible with at least one deterministic transition table exactly when
+
+```math
+s_i=s_j\ \text{and}\ x_i=x_j \quad\Longrightarrow\quad s_{i+1}=s_{j+1}.
+```
+
+Let `m(s)` be the number of distinct `(s_t, x_t)` pairs touched by the trajectory. Under the independent uniform destination prior, marginalizing all untouched transition entries gives transition-constraint weight `N^{-m(s)}`. With state/byte counts `n_{q,b}` and totals `n_q`, integrating the symmetric Dirichlet-1/2 emissions gives
+
+```math
+P(x\mid s)=\prod_{q=0}^{N-1}
+\frac{\Gamma(128)}{\Gamma(n_q+128)}
+\prod_{b=0}^{255}
+\frac{\Gamma(n_{q,b}+1/2)}{\Gamma(1/2)}.
+```
+
+Therefore the exact fixed-N evidence can be written as a weighted trajectory count:
+
+```math
+P(x_{0:T-1})=
+\sum_{s_1,\ldots,s_T}
+\mathbf 1[\text{DFA-consistent}(s,x)]
+N^{-m(s)}P(x\mid s).
+```
+
+For N = 2, each transition destination is a Boolean variable. Averaging a likelihood function over the uniform complete transition table is equivalent to the expression above: variables untouched on a particular path cancel under marginalization. This permits exact BDD/ADD, variable-elimination, tensor-contraction, or other weighted-model-counting representations without changing the Bayesian model.
+
+For prequential Bayes prediction, the chain rule gives
+
+```math
+\sum_{t=0}^{T-1}-\ln P(x_t\mid x_{<t})=-\ln P(x_{0:T-1}).
+```
+
+Thus an exact joint-evidence evaluator is sufficient for cumulative coding-cost comparison even if it does not expose every sequential posterior mixture. It is not sufficient when the experiment needs posterior components, next-symbol probabilities for unobserved alternatives, or search-policy diagnostics.

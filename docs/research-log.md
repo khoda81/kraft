@@ -1,5 +1,16 @@
 # Research log
 
+## 2026-09-06 — Symbolic exact DFA evidence
+
+**Goal:** share computation across exact N = 2 DFA hypotheses rather than only sharing their stored histories.
+
+**Work:** added `dfa-wmc`, a reduced ordered ADD evaluator over uniform Boolean transition-table variables. The symbolic recurrence carries the hidden state and state-one sufficient counts; the Dirichlet-1/2 joint log likelihood is rebuilt from count ADDs in a fixed factor order and averaged over the transition variables. Hash-consing shares identical algebraic subfunctions. Exact mark-and-rebuild garbage collection preserves all live roots and retries a node-limited observation once. Added independent complete-table enumeration tests, leaf-oracle evidence comparisons, GC continuation coverage, symbolic-node/payload/RSS diagnostics, and explicit node guards (D017). Discovery is now the default leaf quotient; predictive remains available for regressions.
+
+**Results:** the ADD matched the persistent leaf oracle at every enwik8 prefix through byte 22, with maximum observed difference about `2.42e-12` nat. At byte 26 it used 7,529 live nodes, about 10 MB RSS, and 0.049 seconds, versus 9,289,728 leaves, 1.81 GB RSS, and 109.419 seconds for the leaf run. A ten-million-node workspace reached byte 44. A thirty-million-node workspace reached byte 46 with 5,612,035 live nodes, then exceeded the guard while constructing byte 47; see [E0c](experiments/E0-symbolic-dfa-wmc.md).
+
+**Interpretation:** exact cross-leaf algebraic reuse is substantial and extends the tractable prefix by twenty bytes, but byte 64 remains unmet. The immediate symbolic bottleneck is temporary ADD apply width: byte 47 needs more than 24 million new intermediate nodes even though only 5.61 million nodes are live after byte 46. Variable ordering and within-observation factor scheduling/collection are the next controlled experiments.
+
+
 ## 2026-09-06 — Persistent exact partial-DFA state
 
 **Goal:** quantify how much of the exact N = 2 posterior's memory growth came from cloning historical transition and emission state into every branch.

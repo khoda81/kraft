@@ -4,7 +4,7 @@ Updated: 2026-09-06 (UTC).
 
 ## Stage
 
-Byte harness ready; the exact fixed-N partial-DFA posterior is implemented and measured on an enwik8 prefix. Persistent transition and emission histories substantially reduce physical state duplication, but exact posterior leaf count remains exponential.
+Byte harness ready; the exact fixed-N partial-DFA posterior and an exact N = 2 ADD weighted-model-counting evaluator are implemented. Persistent histories reduce physical state duplication, and symbolic evidence evaluation shares computation across leaves through byte 46 on enwik8. ADD intermediate width still grows rapidly; byte 64 remains unmet.
 
 ## Implemented
 
@@ -20,12 +20,13 @@ Byte harness ready; the exact fixed-N partial-DFA posterior is implemented and m
 - Exact fixed-N Bayesian posterior over byte-input DFA transition tables with lazy transition instantiation, exact unused-label aggregation, Dirichlet-1/2 state emissions, and discovery/predictive state-label quotients.
 - Persistent parent-linked arenas for transition assignments and emission observations. Component merging uses semantic content, not arena identity, and short-prefix tests compare both quotient modes against the prior vector-backed oracle.
 - DFA diagnostics for logical assigned transitions, physical transition/emission arena nodes, payload estimate, Linux process RSS, elapsed time, exact posterior concentration, and higher-is-better coding ratios.
+- Exact N = 2 joint-evidence evaluation with reduced ordered ADDs over Boolean transition variables, closed-form integrated emission likelihood from symbolic counts, exact garbage collection, and complete-table/leaf-oracle validation.
 
 The validation and remote setup outcome is recorded in the [research log](research-log.md). No approximate scheduler, frontier/replay pruner, GPU backend, synthetic generator, or automatic run-manifest system is implemented. Dataset files remain local to the user.
 
 ## Immediate next step
 
-**Choose the next exact-inference representation question.** [E0b](experiments/E0-persistent-dfa-state.md) shows that persistent histories reduce byte-22 payload by 76.41% and extend the N = 2 run to byte 26 / 9,289,728 components, after which leaf-wise compute and component count dominate. A weighted decision/arithmetic DAG is the proposed next research direction; it has not been implemented. B1's full-file baseline comparison remains independently pending.
+**Reduce symbolic intermediate width.** [E0c](experiments/E0-symbolic-dfa-wmc.md) validates exact ADD evidence through the leaf-oracle limit and extends enwik8 from byte 26 to byte 46. The next controlled experiments are variable ordering and within-observation factor scheduling/garbage collection, with byte 64 as the unmet gate. B1's full-file baseline comparison remains independently pending.
 
 ## Open questions / blockers
 
@@ -36,4 +37,4 @@ The validation and remote setup outcome is recorded in the [research log](resear
 
 ## Evidence so far
 
-The [B1 prefix record](experiments/B1-enwik8-baseline.md) contains the first measured unigram coding cost and its provenance/limitations. [E0](experiments/E0-partial-dfa-posterior.md) records the exact posterior and quotient experiment. [E0b](experiments/E0-persistent-dfa-state.md) records the persistent-state implementation, exactness checks, byte-by-byte growth, payload estimates, RSS samples, and timing limitations. The log-base conversion and finite-tail bounds in [theory](theory.md) remain algebraic statements under stated assumptions, not measured findings.
+The [B1 prefix record](experiments/B1-enwik8-baseline.md) contains the first measured unigram coding cost and its provenance/limitations. [E0](experiments/E0-partial-dfa-posterior.md) records the exact posterior and quotient experiment. [E0b](experiments/E0-persistent-dfa-state.md) records persistent-state memory results. [E0c](experiments/E0-symbolic-dfa-wmc.md) records exact cross-leaf computation sharing, oracle agreement, and the byte-46 ADD-width limit. The log-base conversion and finite-tail bounds in [theory](theory.md) remain algebraic statements under stated assumptions, not measured findings.

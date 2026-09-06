@@ -786,7 +786,7 @@ impl ExactPartialDfaMixture {
     /// an independent uniform prior over all state_count destination labels.
     /// All complete DFAs therefore have equal prior probability conditional on N.
     pub fn new(state_count: u16) -> Result<Self, PartialDfaError> {
-        Self::with_quotient(state_count, DfaQuotient::Predictive)
+        Self::with_quotient(state_count, DfaQuotient::Discovery)
     }
 
     /// Create the oracle with an explicit exact state-label quotient.

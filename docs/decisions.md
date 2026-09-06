@@ -68,3 +68,11 @@ This supersedes D014 and the compatibility portion of D011. Historical experimen
 Arena node identity is not model identity. Compact fingerprints accelerate component-map lookup, but collisions are resolved by exact logical transition and emission-content comparison. Predictive state canonicalization reorders logical state mappings without rewriting historical arena nodes. Linear history lookup is accepted for the current short-prefix oracle; a cache requires measured justification.
 
 This changes representation and diagnostics only. It does not change the conditional uniform transition prior, Dirichlet-1/2 emission law, prequential order, quotient semantics, posterior masses, or epsilon-retention calculation. Persistent emissions were included after a transition-only byte-22 measurement showed that cloned emission vectors had become the dominant estimated payload. No pruning or weighted decision DAG is part of this decision.
+
+## 2026-09-06 — D017: exact N = 2 joint evidence by ADD weighted model counting
+
+**Accepted as a second oracle:** for N = 2, treat each encountered transition-table destination as a uniform Boolean variable and represent the hidden state, sufficient emission counts, and integrated log likelihood as reduced ordered algebraic decision diagrams. Average the final likelihood function over its Boolean decisions to obtain exact joint evidence. This is the same labeled transition-table prior as the leaf oracle: variables irrelevant to a trajectory reduce away, reproducing the `2^(-m(s))` transition-constraint weight.
+
+The new evaluator computes joint evidence and cumulative coding cost only; it does not replace the leaf engine when posterior components or sequential predictive distributions are required. Complete-table enumeration and leaf-oracle agreement are mandatory regressions. Node guards and garbage collection manage representation resources but do not prune model mass.
+
+Use discovery quotient as the default leaf-oracle mode. Retain predictive quotient as an explicit option and regression test because it preserves evidence but showed no component reduction and added runtime on the measured prefix. For the ADD prototype, retain first-seen byte-pair variable ordering until variable-order experiments provide evidence for a replacement.

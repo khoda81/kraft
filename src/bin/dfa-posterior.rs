@@ -23,7 +23,7 @@ Transition assignments and emission observations use persistent shared arenas.
 
 Defaults:
   --states 2
-  --quotient predictive
+  --quotient discovery
   --limit 64
   --epsilon 0.01
   --max-components 2000000
@@ -53,7 +53,7 @@ fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
     let mut args = args.into_iter();
     let mut path = None;
     let mut states = 2_u16;
-    let mut quotient = DfaQuotient::Predictive;
+    let mut quotient = DfaQuotient::Discovery;
     let mut limit = 64_u64;
     let mut epsilon = 0.01_f64;
     let mut max_components = 2_000_000_usize;

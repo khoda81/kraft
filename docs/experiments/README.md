@@ -2,7 +2,7 @@
 
 The byte harness is implemented and tested; B1 is **partially run**. The [initial enwik8 prefix record](B1-enwik8-baseline.md) captures two user-reported unigram runs with equal printed coding costs across Rust 1.85.0 and 1.98.1. Full-file uniform/unigram results and input metadata remain pending. See [harness](../harness.md) for commands and scoring rules.
 
-The fixed-N partial-DFA [E0 oracle](E0-partial-dfa-posterior.md) and its [persistent-state follow-up](E0-persistent-dfa-state.md) are implemented and measured on the first 26 enwik8 bytes. The broader synthetic E0 campaign and E1–E6 remain planned. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
+The fixed-N partial-DFA [E0 oracle](E0-partial-dfa-posterior.md), its [persistent-state follow-up](E0-persistent-dfa-state.md), and the exact N = 2 [symbolic evidence evaluator](E0-symbolic-dfa-wmc.md) are implemented. Symbolic evaluation reaches byte 46 on the measured enwik8 prefix; byte 64 remains an unmet gate. The broader synthetic E0 campaign and E1–E6 remain planned. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
 
 | ID | Question | Comparison / measurements | Gate |
 | --- | --- | --- | --- |
