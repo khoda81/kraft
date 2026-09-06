@@ -245,7 +245,6 @@ fn visit_permutations(
         values.swap(start, index);
     }
 }
-}
 
 /// Exact state-label quotient used by the partial-DFA oracle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
