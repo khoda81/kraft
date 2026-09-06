@@ -293,9 +293,7 @@ fn score_and_advance(
 ) -> io::Result<(Score, Vec<u32>, Vec<u32>)> {
     let started = Instant::now();
     let row_count = data.len().saturating_sub(order);
-    eprintln!(
-        "[ngram-fit] order={order}: building {row_count} exact context/next-byte entries"
-    );
+    eprintln!("[ngram-fit] order={order}: building {row_count} exact context/next-byte entries");
     if data.len() <= order {
         let score = uniform_score(order, data.len(), started.elapsed().as_secs_f64());
         return Ok((score, vec![0; data.len() + 1], Vec::new()));
@@ -427,10 +425,7 @@ fn score_and_advance(
     };
     eprintln!(
         "[ngram-fit] order={order}: done in {:.3}s | contexts={} | ngrams={} | total_nats={:.3}",
-        score.seconds,
-        score.observed_contexts,
-        score.observed_ngrams,
-        score.total_nats
+        score.seconds, score.observed_contexts, score.observed_ngrams, score.total_nats
     );
     Ok((score, next_ids, next_representatives))
 }
@@ -531,10 +526,7 @@ fn dump_best_model(data: &[u8], best: &Score, path: &Path, gamma: &GammaCache) -
 
         let mut dump_file = dump_file;
         if order == best.order {
-            eprintln!(
-                "[ngram-fit] writing sparse best-order model to {:?}",
-                path
-            );
+            eprintln!("[ngram-fit] writing sparse best-order model to {:?}", path);
         }
         let (score, next_ids, next_representatives) = score_and_advance(
             data,
