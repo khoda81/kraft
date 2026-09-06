@@ -1,5 +1,16 @@
 # Research log
 
+## 2026-09-06 — Exact lazy partial-DFA posterior oracle
+
+**Goal:** measure whether a Bayesian posterior over byte-input DFA transition tables concentrates enough that a certified epsilon-KL truncation could make the otherwise exponential posterior practical.
+
+**Work:** added an exact fixed-N oracle over all labeled transition tables with lazy edge instantiation, canonical aggregation of unused state labels with exact multiplicity, sparse per-state Dirichlet-1/2 byte emissions, exact component merging, retention diagnostics for the minimum top-mass set satisfying D_KL(Q || P) <= epsilon, and a dedicated `dfa-posterior` CLI. The first implementation intentionally does not prune; it measures whether pruning would be worthwhile before adding frontier/replay machinery.
+
+**Validation:** CI run 34040037792 passed on pinned/stable Rust 1.98.1. Tests verify that N=1 exactly reproduces the byte KT unigram, unused-label aggregation preserves 1/N versus (N-k)/N branch masses, the retained-mass KL identity is correct, and predictions remain normalized after branching.
+
+**Next:** run N=1 and N=2 on short enwik8 prefixes and inspect exact component growth versus retained component count at epsilon values such as 1e-2 and 1e-3.
+
+
 ## 2026-09-06 — Rust 1.98.1 becomes the project floor
 
 **Request:** remove the Rust 1.85 compatibility target and move active development completely to Rust 1.98.1.
