@@ -20,7 +20,7 @@ Scores raw file bytes in order, predicting before each observation.
 Default model: kt (online byte unigram, Dirichlet-1/2 prior).
 --limit scores only the first BYTES bytes (default: whole file).
 --costs streams zero-based byte offsets and costs in nats to a NEW CSV file.
-Reports ideal total coding cost in nats/bits and bits per byte.
+Reports ideal total coding cost in nats/bits and coding ratio vs uniform.
 Use -- before a positional file path starting with a dash.";
 
 struct Args {
@@ -120,9 +120,9 @@ fn run(args: &Args, mut model: impl Model<u8>) -> io::Result<()> {
     writeln!(stdout, "bytes: {}", report.bytes)?;
     writeln!(stdout, "total_nats: {:.12}", report.total_nats)?;
     writeln!(stdout, "total_bits: {:.12}", report.total_bits())?;
-    match report.bits_per_byte() {
-        Some(value) => writeln!(stdout, "bits_per_byte: {value:.12}")?,
-        None => writeln!(stdout, "bits_per_byte: n/a")?,
+    match report.coding_ratio_uniform() {
+        Some(value) => writeln!(stdout, "coding_ratio_uniform: {value:.12}")?,
+        None => writeln!(stdout, "coding_ratio_uniform: n/a")?,
     }
     writeln!(stdout, "evaluation_seconds: {elapsed:.6}")?;
     Ok(())

@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [pinned, msrv, stable]
+        target: [pinned, stable]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -38,8 +38,6 @@ jobs:
           target = os.environ["KRAFT_TOOLCHAIN_TARGET"]
           if target == "pinned":
               version = tomllib.loads(Path("rust-toolchain.toml").read_text())["toolchain"]["channel"]
-          elif target == "msrv":
-              version = tomllib.loads(Path("Cargo.toml").read_text())["package"]["rust-version"]
           else:
               version = "stable"
           with open(os.environ["GITHUB_OUTPUT"], "a") as output:

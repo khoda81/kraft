@@ -1,5 +1,5 @@
 use kraft::{
-    Distribution, Model,
+    Distribution, Evaluation, Model,
     baselines::{Kt, Uniform},
     evaluate, evaluate_with_costs,
 };
@@ -14,15 +14,15 @@ fn raw_bytes_and_utf8_have_exact_uniform_cost() {
     let result = evaluate(bytes.as_slice(), &mut Uniform).unwrap();
     assert_eq!(result.bytes, bytes.len() as u64);
     assert!((result.total_bits() - 8.0 * bytes.len() as f64).abs() < 1e-10);
-    assert!((result.bits_per_byte().unwrap() - 8.0).abs() < 1e-12);
+    assert!((result.coding_ratio_uniform().unwrap() - 1.0).abs() < 1e-12);
 }
 
 #[test]
-fn empty_input_has_no_average() {
+fn empty_input_has_no_coding_ratio() {
     let report = evaluate(&b""[..], &mut Uniform).unwrap();
     assert_eq!(report.bytes, 0);
     assert_eq!(report.total_nats, 0.0);
-    assert_eq!(report.bits_per_byte(), None);
+    assert_eq!(report.coding_ratio_uniform(), None);
 }
 
 #[test]
@@ -164,4 +164,24 @@ fn kt_distribution_is_normalized_before_and_after_learning() {
         assert!((mass - 1.0).abs() < 1e-12);
         model.observe(byte);
     }
+}
+
+#[test]
+fn coding_ratio_is_baseline_cost_over_model_cost() {
+    let model = Evaluation {
+        bytes: 10,
+        total_nats: 4.0,
+    };
+    let baseline = Evaluation {
+        bytes: 10,
+        total_nats: 8.0,
+    };
+    assert_eq!(model.coding_ratio_against(&baseline), Some(2.0));
+    assert_eq!(baseline.coding_ratio_against(&model), Some(0.5));
+
+    let different_length = Evaluation {
+        bytes: 9,
+        total_nats: 4.0,
+    };
+    assert_eq!(model.coding_ratio_against(&different_length), None);
 }

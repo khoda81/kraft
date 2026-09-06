@@ -3,6 +3,7 @@
 pub mod baselines;
 pub mod evaluate;
 pub mod model;
+pub mod models;
 
 pub use evaluate::{Evaluation, evaluate, evaluate_with_costs};
 pub use model::{Distribution, Model};
