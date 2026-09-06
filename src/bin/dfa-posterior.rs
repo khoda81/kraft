@@ -8,11 +8,7 @@ use std::{
     time::Instant,
 };
 
-use kraft::{
-    Distribution, Model,
-    baselines::Kt,
-    models::partial_dfa::ExactPartialDfaMixture,
-};
+use kraft::{Distribution, Model, baselines::Kt, models::partial_dfa::ExactPartialDfaMixture};
 
 const HELP: &str = "Usage: dfa-posterior <file> [--states N] [--limit BYTES] [--epsilon NATS] [--max-components N] [--report-every N]
 
@@ -131,8 +127,8 @@ fn coding_ratio_uniform(bytes: u64, total_nats: f64) -> f64 {
 fn run(args: &Args) -> io::Result<()> {
     let input = File::open(&args.path)?;
     let mut reader = BufReader::new(input).take(args.limit);
-    let mut mixture = ExactPartialDfaMixture::new(args.states)
-        .map_err(|error| invalid(error.to_string()))?;
+    let mut mixture =
+        ExactPartialDfaMixture::new(args.states).map_err(|error| invalid(error.to_string()))?;
     let mut kt = Kt::default();
 
     let mut total_nats = 0.0;
@@ -192,7 +188,7 @@ fn run(args: &Args) -> io::Result<()> {
             kt.observe(byte);
             bytes += 1;
 
-            if bytes % args.report_every == 0 || bytes == args.limit {
+            if bytes.is_multiple_of(args.report_every) || bytes == args.limit {
                 let diagnostics = mixture.diagnostics(args.epsilon);
                 let retain_fraction =
                     diagnostics.retained_components as f64 / diagnostics.components as f64;
@@ -232,7 +228,10 @@ fn run(args: &Args) -> io::Result<()> {
         println!("coding_ratio_kt: {:.12}", kt_total_nats / total_nats);
         let diagnostics = mixture.diagnostics(args.epsilon);
         println!("components: {}", diagnostics.components);
-        println!("retained_components_epsilon: {}", diagnostics.retained_components);
+        println!(
+            "retained_components_epsilon: {}",
+            diagnostics.retained_components
+        );
         println!("retained_mass: {:.12}", diagnostics.retained_mass);
         println!("retained_kl_nats: {:.12}", diagnostics.retained_kl_nats);
         println!(
