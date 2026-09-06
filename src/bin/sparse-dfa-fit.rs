@@ -618,7 +618,7 @@ fn run(args: &Args) -> io::Result<()> {
         let data_nats = -candidate.ln_evidence;
         let prior_nats = -candidate.model.ln_prior();
         let joint_nats = data_nats + prior_nats;
-        let explored_posterior = (candidate.ln_joint() - finalist_log_mass).exp();
+        let finalist_relative_posterior = (candidate.ln_joint() - finalist_log_mass).exp();
         println!(
             "{}\t{}\t{}\t{}\t{:.12}\t{:.6}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}",
             rank + 1,
@@ -632,7 +632,7 @@ fn run(args: &Args) -> io::Result<()> {
             uniform_nats / joint_nats,
             kt_nats / data_nats,
             kt_nats / joint_nats,
-            explored_posterior,
+            finalist_relative_posterior,
         );
     }
 
