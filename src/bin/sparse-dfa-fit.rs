@@ -9,9 +9,7 @@
 //!
 //! so heuristic search quality affects tightness, not validity of the bound.
 
-use std::{
-    collections::HashSet, fs, io, path::PathBuf, process::ExitCode, thread, time::Instant,
-};
+use std::{collections::HashSet, fs, io, path::PathBuf, process::ExitCode, thread, time::Instant};
 
 use clap::{Parser, ValueEnum};
 use kraft::models::sparse_dfa::{DefaultTopology, SparseDfa, SparseOverride};
