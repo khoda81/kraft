@@ -627,7 +627,6 @@ mod tests {
         assert!(mixture.prospective_child_count(b'B') >= mixture.component_count());
     }
 
-
     #[test]
     fn predictive_canonicalization_forgets_irrelevant_state_names() {
         let left = Component {
