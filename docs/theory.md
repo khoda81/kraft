@@ -102,3 +102,67 @@ For prequential Bayes prediction, the chain rule gives
 ```
 
 Thus an exact joint-evidence evaluator is sufficient for cumulative coding-cost comparison even if it does not expose every sequential posterior mixture. It is not sufficient when the experiment needs posterior components, next-symbol probabilities for unobserved alternatives, or search-policy diagnostics.
+
+## Proper prior over all finite labeled DFAs
+
+KRAFT's first unbounded recurrent-DFA prior uses a unary code for the state count:
+
+```math
+P(N)=2^{-N},\qquad N=1,2,\ldots
+```
+
+This is already normalized because the state-count code can be read as `1^(N-1)0`.
+
+Conditional on `N`, the start state is fixed to label zero and every one of the `256N` transition entries independently chooses a destination uniformly from the `N` labels:
+
+```math
+P(\delta\mid N)=N^{-256N}.
+```
+
+Therefore each complete labeled DFA has prior
+
+```math
+P(N,\delta)=2^{-N}N^{-256N}.
+```
+
+For fixed `N`, summing over all `N^(256N)` labeled transition tables gives `2^-N`; summing over every finite `N` gives one. State-emission probabilities are not point-estimated parameters: each state's byte categorical distribution is integrated under the symmetric Dirichlet-1/2 prior.
+
+This is deliberately a description-level prior. State renamings, unreachable-state variants, and other distinct labeled descriptions may induce the same predictive function and retain their combined prior multiplicity. A future function-level quotient would need to sum those masses rather than simply delete duplicate descriptions.
+
+### Exact finite prefix with a certified unbounded tail
+
+The implementation evaluates `N=1..N_max` exactly using the lazy partial-DFA oracle. It does not renormalize the declared model prior and pretend larger DFAs do not exist.
+
+The omitted state-count prior is exactly
+
+```math
+U_0=\sum_{N>N_{\max}}2^{-N}=2^{-N_{\max}}.
+```
+
+For any observed prefix, every likelihood is at most one, so the omitted unnormalized posterior mass remains bounded by `U_t <= U_0`.
+
+If
+
+```math
+Z_t=\sum_{N=1}^{N_{\max}}2^{-N}P_N(x_{1:t})
+```
+
+is the exact joint mass of evaluated classes, then the posterior conditioned on evaluated classes has certified omitted-mass and forward-KL bounds
+
+```math
+\delta_t\le\frac{U_0}{Z_t+U_0},
+\qquad
+D_{KL}(Q_t\Vert P_t)\le\ln\left(1+\frac{U_0}{Z_t}\right).
+```
+
+The truncated predictive distribution is exact conditional on `N<=N_max`; the KL certificate quantifies how far that retained posterior can be from the full unbounded DFA posterior. The certificate can loosen as evidence shrinks, so larger state-count classes must eventually be opened if the tail becomes important.
+
+### Description cost
+
+For a complete labeled `N`-state transition table, the ideal negative-log prior cost is
+
+```math
+L(N,\delta)=N+256N\log_2N\quad\text{bits}.
+```
+
+The first term is the unary state-count code. The second is the conditional transition-table code. This cost is not a claim that a literal table is the best way to describe structured DFAs; later KRAFT priors can add short program descriptions for transition functions such as shift registers, latches, counters, or generated automata and Bayesian-mix them with the literal-table family.
