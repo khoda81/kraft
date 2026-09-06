@@ -46,7 +46,10 @@ impl<A, B> Mixture<A, B> {
     ///
     /// Positive values favor model A; negative values favor model B.
     pub fn with_log_weight_ratio(a: A, b: B, log_weight_ratio: f64) -> Self {
-        assert!(!log_weight_ratio.is_nan(), "mixture log weight ratio cannot be NaN");
+        assert!(
+            !log_weight_ratio.is_nan(),
+            "mixture log weight ratio cannot be NaN"
+        );
         Self {
             a,
             b,
