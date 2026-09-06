@@ -1,5 +1,5 @@
 use kraft::{
-    Distribution, Model,
+    Distribution, Evaluation, Model,
     baselines::{Kt, Uniform},
     evaluate, evaluate_with_costs,
 };
@@ -164,4 +164,25 @@ fn kt_distribution_is_normalized_before_and_after_learning() {
         assert!((mass - 1.0).abs() < 1e-12);
         model.observe(byte);
     }
+}
+
+
+#[test]
+fn coding_ratio_is_baseline_cost_over_model_cost() {
+    let model = Evaluation {
+        bytes: 10,
+        total_nats: 4.0,
+    };
+    let baseline = Evaluation {
+        bytes: 10,
+        total_nats: 8.0,
+    };
+    assert_eq!(model.coding_ratio_against(&baseline), Some(2.0));
+    assert_eq!(baseline.coding_ratio_against(&model), Some(0.5));
+
+    let different_length = Evaluation {
+        bytes: 9,
+        total_nats: 4.0,
+    };
+    assert_eq!(model.coding_ratio_against(&different_length), None);
 }
