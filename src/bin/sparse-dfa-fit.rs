@@ -455,19 +455,20 @@ fn write_best(path: &PathBuf, candidate: &Candidate) -> io::Result<()> {
     fs::write(path, output)
 }
 
-
 fn format_overrides(candidate: &Candidate) -> String {
     candidate
         .model
         .overrides()
         .iter()
         .map(|edge| {
-            let byte = if edge.byte.is_ascii_graphic() || edge.byte == b' ' {
-                format!("{}:{:02x}('{}')->{}", edge.source, edge.byte, edge.byte as char, edge.destination)
+            if edge.byte.is_ascii_graphic() || edge.byte == b' ' {
+                format!(
+                    "{}:{:02x}('{}')->{}",
+                    edge.source, edge.byte, edge.byte as char, edge.destination
+                )
             } else {
                 format!("{}:{:02x}->{}", edge.source, edge.byte, edge.destination)
-            };
-            byte
+            }
         })
         .collect::<Vec<_>>()
         .join(",")
