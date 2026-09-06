@@ -6,11 +6,11 @@
 
 **Work:** added scalar `BinaryKtFsm`, stable base-N transition-table ranks, exact labeled-table counts, and `ExactFsmMixture` with an explicit maximum-model allocation guard. Added analytic and normalization tests, including the one-state Beta-Bernoulli check and exact one-state mixture identity. The multiply-shift family is intentionally deferred so it can be evaluated against this oracle rather than define it.
 
-**Validation:** pending GitHub CI on `feat/finite-state-oracle`; no experiment result is claimed yet. The available agent shell has no Rust toolchain and cannot resolve github.com, so repository CI is the validation path.
+**Validation:** GitHub CI run 34034335503 passed documentation links plus formatting, Clippy with warnings denied, tests, and rustdoc on Rust 1.85.1 and stable 1.98.1. These validate implementation invariants only; no predictive experiment result is claimed yet.
 
 **Maintenance:** the user's commit `3c6d09f` removed `rust-toolchain.toml`; CI and documentation still referenced it. D013 records the resulting no-pin policy, with MSRV plus current stable CI.
 
-**Next:** if CI passes, mark Q2 complete and add Q3 synthetic generators/runner integration.
+**Next:** Q3 synthetic generators and runner integration, then the first E0 finite-state runs.
 
 
 ## 2026-09-06 — Toolchain update and first enwik8 prefix result
