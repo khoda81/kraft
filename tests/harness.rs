@@ -1,5 +1,5 @@
 use kraft::{
-    Distribution, Model,
+    Distribution, Evaluation, Model,
     baselines::{Kt, Uniform},
     evaluate, evaluate_with_costs,
 };
@@ -14,15 +14,16 @@ fn raw_bytes_and_utf8_have_exact_uniform_cost() {
     let result = evaluate(bytes.as_slice(), &mut Uniform).unwrap();
     assert_eq!(result.bytes, bytes.len() as u64);
     assert!((result.total_bits() - 8.0 * bytes.len() as f64).abs() < 1e-10);
-    assert!((result.bits_per_byte().unwrap() - 8.0).abs() < 1e-12);
+    assert!((result.uniform_coding_ratio().unwrap() - 1.0).abs() < 1e-12);
+    assert!((result.total_bytes() - bytes.len() as f64).abs() < 1e-10);
 }
 
 #[test]
-fn empty_input_has_no_average() {
+fn empty_input_has_no_coding_ratio() {
     let report = evaluate(&b""[..], &mut Uniform).unwrap();
     assert_eq!(report.bytes, 0);
     assert_eq!(report.total_nats, 0.0);
-    assert_eq!(report.bits_per_byte(), None);
+    assert_eq!(report.uniform_coding_ratio(), None);
 }
 
 #[test]
@@ -163,5 +164,50 @@ fn kt_distribution_is_normalized_before_and_after_learning() {
         let mass: f64 = (0..=255).map(|b| model.predict().ln_prob(&b).exp()).sum();
         assert!((mass - 1.0).abs() < 1e-12);
         model.observe(byte);
+    }
+}
+
+#[test]
+fn coding_ratio_compares_models_and_is_unit_invariant() {
+    let input = &b"AAAABABA"[..];
+    let model = evaluate(input, &mut Kt::default()).unwrap();
+    let reference = evaluate(input, &mut Uniform).unwrap();
+    let ratio = model.coding_ratio(&reference).unwrap();
+    assert!((ratio - model.total_bits() / reference.total_bits()).abs() < 1e-12);
+    assert!((ratio - model.total_bytes() / reference.total_bytes()).abs() < 1e-12);
+    assert!((ratio - model.uniform_coding_ratio().unwrap()).abs() < 1e-12);
+    assert!((ratio * reference.coding_ratio(&model).unwrap() - 1.0).abs() < 1e-12);
+}
+
+#[test]
+fn coding_ratio_handles_undefined_and_infinite_costs() {
+    let finite = Evaluation {
+        bytes: 3,
+        total_nats: 4.0,
+    };
+    let zero = Evaluation {
+        bytes: 3,
+        total_nats: 0.0,
+    };
+    let infinite = Evaluation {
+        bytes: 3,
+        total_nats: f64::INFINITY,
+    };
+    assert_eq!(finite.coding_ratio(&zero), None);
+    assert_eq!(zero.coding_ratio(&finite), Some(0.0));
+    assert_eq!(infinite.coding_ratio(&infinite), None);
+    assert_eq!(infinite.coding_ratio(&finite), Some(f64::INFINITY));
+    assert_eq!(finite.coding_ratio(&infinite), Some(0.0));
+    assert_eq!(
+        finite.coding_ratio(&Evaluation { bytes: 4, ..finite }),
+        None
+    );
+    for value in [-1.0, f64::NEG_INFINITY, f64::NAN] {
+        let invalid = Evaluation {
+            total_nats: value,
+            ..finite
+        };
+        assert_eq!(finite.coding_ratio(&invalid), None);
+        assert_eq!(invalid.coding_ratio(&finite), None);
     }
 }

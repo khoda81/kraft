@@ -1,7 +1,7 @@
 //! Small byte baselines for checking and exercising the harness.
 use crate::{Distribution, Model};
 
-/// Fixed uniform distribution over all 256 byte values: exactly 8 bits/byte.
+/// Fixed uniform distribution over all 256 byte values: coding ratio 1 to itself.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Uniform;
 

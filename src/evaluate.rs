@@ -15,9 +15,33 @@ impl Evaluation {
         self.total_nats / std::f64::consts::LN_2
     }
 
-    /// Empty input has zero total cost and no defined average cost.
-    pub fn bits_per_byte(&self) -> Option<f64> {
-        (self.bytes != 0).then(|| self.total_bits() / self.bytes as f64)
+    /// Ideal coding cost in bytes (fractional; not an encoded file size).
+    pub fn total_bytes(&self) -> f64 {
+        self.total_bits() / 8.0
+    }
+
+    /// Coding ratio `self / reference`; lower means a shorter code.
+    ///
+    /// Both reports must describe the same input and evaluation protocol. Only
+    /// byte counts can be checked here; this does not verify input identity.
+    /// Returns None for unequal counts, negative/NaN costs, a zero reference
+    /// cost, or infinity/infinity. An infinite numerator gives an infinite
+    /// ratio against finite positive cost; finite/infinity gives zero.
+    pub fn coding_ratio(&self, reference: &Self) -> Option<f64> {
+        if self.bytes != reference.bytes || self.total_nats < 0.0 || reference.total_nats <= 0.0 {
+            return None;
+        }
+        let ratio = self.total_nats / reference.total_nats;
+        (!ratio.is_nan()).then_some(ratio)
+    }
+
+    /// Ratio to the analytic uniform-byte model on the same number of bytes.
+    /// Empty input has zero costs and an undefined ratio (None).
+    pub fn uniform_coding_ratio(&self) -> Option<f64> {
+        self.coding_ratio(&Self {
+            bytes: self.bytes,
+            total_nats: self.bytes as f64 * (8.0 * std::f64::consts::LN_2),
+        })
     }
 }
 

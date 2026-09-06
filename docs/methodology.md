@@ -4,11 +4,11 @@
 
 For each symbol: form a prediction from the previously observed prefix, score the revealed symbol, then update model weights and states. Hyperparameters chosen with the evaluation stream invalidate a clean held-out claim. Fix exploratory/tuning streams separately from final reporting streams.
 
-The initial benchmark objective is **total prequential coding cost on the same raw byte stream**, as requested by the user. Report total nats, total bits, and bits per byte. Timing is secondary and does not alter this objective. When comparing future schedulers, additionally compare at matched compute budgets; do not hide search cost behind model count.
+The initial benchmark objective is **total prequential coding cost on the same raw byte stream**, as requested by the user. Report absolute coding costs (nat/bit/byte/KB/MB/etc.) and `C_model / C_reference` for a named reference on the same stream, with both costs in the same unit. Ratios below 1 favor the numerator model; uniform is the default reference. Timing is secondary and does not alter this objective. When comparing future schedulers, additionally compare at matched compute budgets; do not hide search cost behind model count.
 
 ## Baselines
 
-- Uniform-byte predictor (eight bits/byte), implemented as a sanity check.
+- Uniform-byte predictor (coding cost in bytes equals input length), implemented as a sanity check.
 - Adaptive byte unigram with symmetric Dirichlet-1/2 prior, implemented as the initial learning baseline.
 - For future binary synthetic tests: fair-coin and Beta-Bernoulli predictors with the prior stated explicitly.
 - Short context/Markov predictors with a declared smoothing rule.
@@ -20,7 +20,7 @@ The initial benchmark objective is **total prequential coding cost on the same r
 
 | Dimension | Required measurements |
 | --- | --- |
-| Prediction | Cumulative bits, bits/symbol, regret to exact mixture at matching prefixes |
+| Prediction | Absolute coding cost, coding ratio to a named reference, regret to exact mixture at matching prefixes |
 | Inference | Exact retained/omitted mass when available; stated KL direction; predictive total variation |
 | Search | Models considered/admitted, frontier size, prior mass coverage, duplicate fraction |
 | Compute | Model-symbol updates, replay steps, proposal/enumeration work, wall time, peak memory |

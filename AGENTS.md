@@ -6,6 +6,7 @@ Read README.md, docs/status.md, docs/theory.md, and docs/queue.md before substan
 - Keep implementation details in code/configs; docs explain theory, methodology, decisions, and results.
 - CPU Rust first. Preserve a possible GPU path with explicit state and batching; do not add a GPU stack or VM spec prematurely.
 - Use log weights, specify log units, and distinguish scheduling utility from posterior mass.
+- Report absolute coding costs in nat/bit/byte/KB/MB/etc. and coding ratio C_model/C_reference (same stream and units, lower is better). Use uniform as the default reference; do not report per-symbol cost rates.
 - Evaluate prequentially: predict and score before observing/updating. Charge replay, search, and proposal work to the budget.
 - Never claim a global tail certificate for an unbounded program space without a valid bound.
 - For substantive work update docs/status.md, docs/queue.md, and the research log. Record changed assumptions in docs/decisions.md. Record experiments using docs/templates/experiment.md.

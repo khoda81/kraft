@@ -12,6 +12,7 @@ Byte harness ready; the first user-reported enwik8 prefix baseline is recorded. 
 - Stable log-weight normalization with zero-mass/error handling and numerical unit tests.
 - Generic `Model<T>` / `Distribution<T>` traits, streaming byte evaluator, optional per-byte cost sink, and local-file CLI.
 - Uniform-byte and Dirichlet-1/2 adaptive unigram baselines. See [harness](harness.md).
+- Absolute coding costs and model-to-reference coding ratios; CLI reference is uniform.
 - CI for formatting, Clippy, tests, rustdoc, and local Markdown file links; dependency-update configuration and contribution templates.
 - Research context, proposed architecture, experiment protocols, and prioritized queue.
 - GitHub description and all seven research topics configured; confirmed by user-provided CLI output.
