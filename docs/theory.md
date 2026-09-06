@@ -179,3 +179,116 @@ L(N,\delta)=N+256N\log_2N\quad\text{bits}.
 ```
 
 The first term is the unary state-count code. The second is the conditional transition-table code. This cost is not a claim that a literal table is the best way to describe structured DFAs; later KRAFT priors can add short program descriptions for transition functions such as shift registers, latches, counters, or generated automata and Bayesian-mix them with the literal-table family.
+
+## Sparse default-topology DFAs
+
+A dense labeled DFA charges separately for every byte transition. That makes even three states expensive because a byte alphabet produces 768 independent transition entries. A more algorithmic family gives each state a cheap implicit default destination and pays only for byte-specific exceptions.
+
+KRAFT currently includes three default skeletons:
+
+```math
+d_{\mathrm{stay}}(s)=s,
+```
+
+```math
+d_{\mathrm{next}}(s)=\min(s+1,N-1),
+```
+
+and
+
+```math
+d_{\mathrm{cycle}}(s)=(s+1)\bmod N.
+```
+
+A sparse exception set E overrides these defaults:
+
+```math
+\delta(s,x)=
+\begin{cases}
+E(s,x), & (s,x)\in\mathrm{dom}(E),\\
+d(s), & \text{otherwise}.
+\end{cases}
+```
+
+This separates raw state count from description complexity. For example, a long next-chain can have hundreds or thousands of states while requiring only a short description of N. Sparse jumps then add back-edges, forward skips, resets, or latches.
+
+### Proper description prior
+
+The state count uses the telescoping prior
+
+```math
+P(N)=\frac{1}{N(N+1)},\qquad N\ge1.
+```
+
+Since
+
+```math
+\sum_{N=1}^{\infty}\frac{1}{N(N+1)}=1,
+```
+
+this is proper and costs only
+
+```math
+-\log_2P(N)=\log_2(N(N+1))\approx2\log_2N
+```
+
+bits. Large structured state spaces are therefore cheap.
+
+The three default skeletons are currently equiprobable: P(d)=1/3.
+
+For fixed N, let M=256N be the number of state-byte keys. The number of sparse overrides K in 0..=M uses the normalized truncated telescoping prior
+
+```math
+P(K=k\mid N)
+=
+\frac{1}{(k+1)(k+2)}
+\left/
+\frac{M+1}{M+2}
+\right..
+```
+
+Conditional on K, exception keys are chosen uniformly without replacement:
+
+```math
+P(\mathrm{keys}\mid K,N)=\binom{M}{K}^{-1}.
+```
+
+An override is required to differ from its default destination, so each exception destination has N-1 possibilities:
+
+```math
+P(\mathrm{destinations}\mid K,N)=(N-1)^{-K}.
+```
+
+Thus every sparse DFA description has a normalized Bayesian prior. Its ideal structural cost is
+
+```math
+L(h)
+=
+-\log_2 P(N)
+-\log_2P(d)
+-\log_2P(K\mid N)
++\log_2\binom{256N}{K}
++K\log_2(N-1).
+```
+
+For N=1, only K=0 exists.
+
+### Search versus Bayesian model
+
+The family prior above is exact. The current sparse-dfa-fit binary performs heuristic MAP search in this family rather than summing the full posterior. This distinction is explicit.
+
+Any searched candidate h still gives a rigorous bound on the full Bayesian sparse-DFA mixture:
+
+```math
+P_{\mathrm{mix}}(x)\ge P(h)P_h(x),
+```
+
+so
+
+```math
+C_{\mathrm{mix}}(x)
+\le
+C_h(x)-\ln P(h).
+```
+
+Search quality controls how tight this bound is; it does not affect its validity.
