@@ -10,66 +10,143 @@
 //! so heuristic search quality affects tightness, not validity of the bound.
 
 use std::{
-    collections::HashSet, env, ffi::OsString, fs, io, path::PathBuf, process::ExitCode, thread,
-    time::Instant,
+    collections::HashSet, fs, io, path::PathBuf, process::ExitCode, thread, time::Instant,
 };
 
+use clap::{Parser, ValueEnum};
 use kraft::models::sparse_dfa::{DefaultTopology, SparseDfa, SparseOverride};
 
 const LN_2: f64 = std::f64::consts::LN_2;
 
-const HELP: &str = "Usage: sparse-dfa-fit <file> [options]
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum TopologyArg {
+    Stay,
+    Next,
+    Cycle,
+}
 
-Search sparse recurrent DFAs whose byte transitions mostly follow a cheap
-implicit topology and use only a few byte-specific overrides.
+impl From<TopologyArg> for DefaultTopology {
+    fn from(value: TopologyArg) -> Self {
+        match value {
+            TopologyArg::Stay => Self::Stay,
+            TopologyArg::Next => Self::Next,
+            TopologyArg::Cycle => Self::Cycle,
+        }
+    }
+}
 
-Default topologies:
-  stay   d(s)=s
-  next   d(s)=min(s+1,N-1)
-  cycle  d(s)=(s+1) mod N
-
-The description prior is proper:
-  P(N)=1/(N(N+1))
-  P(topology)=1/3
-  P(K|N) proportional to 1/((K+1)(K+2))
-  exception keys uniform without replacement
-  exception destinations uniform among non-default states
-
-Defaults:
-  --states 1,2,4,8,16,32,64,128,256
-  --topologies stay,next,cycle
-  --max-exceptions 4
-  --search-bytes 100000
-  --screen-bytes 5000000
-  --skeletons 6
-  --beam 8
-  --keys-per-parent 8
-  --destinations-per-key 6
-  --screen-candidates 32
-  --finalists 8
-  --threads <available parallelism>
-  --seed 1
-  --dump-best artifacts/sparse-dfa-best.tsv
-
-The search is heuristic MAP search. The candidate mixture bound remains rigorous.";
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Parser)]
+#[command(
+    about = "Search sparse recurrent DFAs under a proper Bayesian description prior",
+    long_about = "Heuristic MAP search over sparse recurrent byte-input DFAs. Each state follows a cheap implicit stay/next/cycle topology by default, with a sparse set of byte-specific transition overrides. The model prior is proper; every returned candidate gives a rigorous upper bound on the full Bayesian mixture coding cost."
+)]
 struct Args {
+    /// Input byte corpus.
+    #[arg(value_name = "FILE")]
     path: PathBuf,
+
+    /// State counts to search.
+    #[arg(
+        long,
+        value_delimiter = ',',
+        default_value = "1,2,4,8,16,32,64,128,256"
+    )]
     states: Vec<u16>,
-    topologies: Vec<DefaultTopology>,
+
+    /// Implicit transition skeletons to search.
+    #[arg(
+        long,
+        value_delimiter = ',',
+        default_value = "stay,next,cycle",
+        value_enum
+    )]
+    topologies: Vec<TopologyArg>,
+
+    /// Maximum sparse transition overrides per candidate.
+    #[arg(long, default_value_t = 4)]
     max_exceptions: usize,
+
+    /// Prefix used for structure search.
+    #[arg(long, default_value_t = 100_000)]
     search_bytes: usize,
+
+    /// Prefix used to screen searched candidates.
+    #[arg(long, default_value_t = 5_000_000)]
     screen_bytes: usize,
+
+    /// Number of bare (N, topology) skeletons to search.
+    #[arg(long, default_value_t = 6)]
     skeletons: usize,
+
+    /// Beam width at each exception depth.
+    #[arg(long, default_value_t = 8)]
     beam: usize,
+
+    /// Most-visited transition keys considered per beam parent.
+    #[arg(long, default_value_t = 8)]
     keys_per_parent: usize,
+
+    /// Candidate non-default destinations considered per transition key.
+    #[arg(long, default_value_t = 6)]
     destinations_per_key: usize,
+
+    /// Candidates retained for the screen prefix.
+    #[arg(long, default_value_t = 32)]
     screen_candidates: usize,
+
+    /// Candidates retained for full-corpus scoring.
+    #[arg(long, default_value_t = 8)]
     finalists: usize,
-    threads: usize,
+
+    /// Scoring worker threads. Defaults to available parallelism.
+    #[arg(long)]
+    threads: Option<usize>,
+
+    /// Deterministic search seed.
+    #[arg(long, default_value_t = 1)]
     seed: u64,
+
+    /// Write the best sparse DFA description here.
+    #[arg(long, default_value = "artifacts/sparse-dfa-best.tsv")]
     dump_best: PathBuf,
+}
+
+impl Args {
+    fn threads(&self) -> usize {
+        self.threads
+            .unwrap_or_else(|| thread::available_parallelism().map_or(1, usize::from))
+    }
+
+    fn validate(&self) -> io::Result<()> {
+        if self.states.is_empty() || self.states.contains(&0) {
+            return Err(invalid("--states must contain positive integers"));
+        }
+        for (name, value) in [
+            ("--search-bytes", self.search_bytes),
+            ("--screen-bytes", self.screen_bytes),
+            ("--skeletons", self.skeletons),
+            ("--beam", self.beam),
+            ("--keys-per-parent", self.keys_per_parent),
+            ("--destinations-per-key", self.destinations_per_key),
+            ("--screen-candidates", self.screen_candidates),
+            ("--finalists", self.finalists),
+        ] {
+            if value == 0 {
+                return Err(invalid(format!("{name} must be positive")));
+            }
+        }
+        if self.threads == Some(0) {
+            return Err(invalid("--threads must be positive"));
+        }
+        if self.finalists > self.screen_candidates {
+            return Err(invalid("--finalists cannot exceed --screen-candidates"));
+        }
+        Ok(())
+    }
+}
+
+fn invalid(message: impl Into<String>) -> io::Error {
+    io::Error::new(io::ErrorKind::InvalidInput, message.into())
 }
 
 #[derive(Debug, Clone)]
@@ -434,7 +511,7 @@ fn search_skeleton(
             proposals.len()
         );
 
-        let mut scored = score_models(proposals.into_iter().collect(), data, args.threads);
+        let mut scored = score_models(proposals.into_iter().collect(), data, args.threads());
         sort_best(&mut scored);
         scored.truncate(args.beam);
         if scored.is_empty() {
@@ -533,14 +610,14 @@ fn run(args: &Args) -> io::Result<()> {
 
     let mut skeleton_models = Vec::new();
     for &states in &args.states {
-        for &topology in &args.topologies {
+        for topology in args.topologies.iter().copied().map(DefaultTopology::from) {
             skeleton_models.push(
                 SparseDfa::empty(states, topology).map_err(|error| invalid(error.to_string()))?,
             );
         }
     }
 
-    let mut skeleton_scores = score_models(skeleton_models, search, args.threads);
+    let mut skeleton_scores = score_models(skeleton_models, search, args.threads());
     sort_best(&mut skeleton_scores);
 
     println!("search_bytes: {search_len}");
@@ -587,7 +664,7 @@ fn run(args: &Args) -> io::Result<()> {
         explored_search,
         screen,
         args.finalists.min(args.screen_candidates),
-        args.threads,
+        args.threads(),
     );
 
     eprintln!(
@@ -595,7 +672,7 @@ fn run(args: &Args) -> io::Result<()> {
         screened.len(),
         data.len()
     );
-    let mut finalists = rescore_candidates(screened, &data, args.finalists, args.threads);
+    let mut finalists = rescore_candidates(screened, &data, args.finalists, args.threads());
     if finalists.is_empty() {
         return Err(invalid("search produced no finalists"));
     }
@@ -665,13 +742,8 @@ fn run(args: &Args) -> io::Result<()> {
 }
 
 fn main() -> ExitCode {
-    let result = parse(env::args_os().skip(1)).and_then(|args| match args {
-        None => {
-            println!("{HELP}");
-            Ok(())
-        }
-        Some(args) => run(&args),
-    });
+    let args = Args::parse();
+    let result = args.validate().and_then(|()| run(&args));
 
     match result {
         Ok(()) => ExitCode::SUCCESS,
