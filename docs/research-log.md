@@ -1,5 +1,17 @@
 # Research log
 
+## 2026-09-06 — Byte coding harness
+
+**Request:** implement a simple generic predict/observe model interface and score the local text dataset byte by byte, minimizing total coding cost. The user supplied paths to enwik8/enwik9; no dataset is available in this execution environment.
+
+**Work:** added generic distribution/model traits, a streaming byte evaluator with optional per-byte cost callback, uniform and Dirichlet-1/2 unigram baselines, and a local-file CLI with prefix limits and optional CSV costs. Updated methodology and queue to put text evaluation before the finite-model track (D010).
+
+**Validation:** Rust 1.85.0 passed formatting, Clippy with warnings denied, four numerical tests, eight harness integration tests, one doctest, and rustdoc with warnings denied. Relative links in 16 Markdown files passed. Release CLI smoke checks scored 100,000 raw fixture bytes across buffer boundaries at exactly 800,000 uniform bits, verified CSV offsets and prefix limits, checked the analytic AAB unigram cost, and exercised empty prefixes, invalid arguments, missing inputs, and overwrite protection. These are synthetic infrastructure checks, not corpus results.
+
+**Findings:** no corpus benchmark has run. No claims about learned program models follow from infrastructure tests.
+
+**Next:** B1 — run and record the local enwik8 baselines.
+
 ## 2026-09-06 — Repository bootstrap
 
 **Goal:** turn the empty `khoda81/kraft` repository into a usable Rust research project with enough context for a new collaborator to continue.

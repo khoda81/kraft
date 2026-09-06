@@ -1,6 +1,6 @@
 # Architecture proposal
 
-Only the numerical helper in `src/lib.rs` exists today. Everything below is a proposed implementation boundary, not an API commitment.
+The [byte harness](harness.md), generic model/distribution traits, two baselines, and numerical helper are implemented. The boundaries below describe the future finite-model mixture/search system; they do not block running the harness.
 
 ## CPU reference
 
@@ -11,7 +11,7 @@ Only the numerical helper in `src/lib.rs` exists today. Everything below is a pr
 | Mixture | Log posterior updates and predictive marginalization | Normalized probabilities; no scheduler penalty in posterior |
 | Search frontier | Enumerate/admit hypotheses and bound omitted mass | No overlap in subtree bounds; explicit coverage |
 | Scheduler | Allocate evaluation work under a budget | Every evaluated/replayed symbol is charged |
-| Runner | Generate data, run baselines, serialize records | Same streams and budget conventions across comparisons |
+| Runner | Existing byte CLI runs baselines; generators/manifests remain planned | Same byte streams across comparisons |
 
 Begin with direct scalar enumeration and transparent data structures. Avoid a large trait hierarchy until two actual implementations need one. A learned proposal distribution is a later experiment, not a replacement for the first exhaustive reference.
 

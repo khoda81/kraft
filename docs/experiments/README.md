@@ -1,6 +1,8 @@
 # Experiment plan
 
-All campaigns below are **planned, not run**. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
+The byte harness is implemented and tested; the first local dataset campaign B1 is **planned, not run**. See [harness](../harness.md) for the initial command and data contract. B1 compares uniform and adaptive unigram total coding costs on an identical enwik8 prefix, then full file, with exact input/hash and command recorded. No corpus score is available yet.
+
+The finite-mixture campaigns below are also **planned, not run**; they remain a separate correctness/search track. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
 
 | ID | Question | Comparison / measurements | Gate |
 | --- | --- | --- | --- |
