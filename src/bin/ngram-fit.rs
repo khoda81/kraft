@@ -292,14 +292,29 @@ fn score_and_advance(
     mut dump: Option<&mut BufWriter<File>>,
 ) -> io::Result<(Score, Vec<u32>, Vec<u32>)> {
     let started = Instant::now();
+    let row_count = data.len().saturating_sub(order);
+    eprintln!(
+        "[ngram-fit] order={order}: building {row_count} exact context/next-byte entries"
+    );
     if data.len() <= order {
         let score = uniform_score(order, data.len(), started.elapsed().as_secs_f64());
         return Ok((score, vec![0; data.len() + 1], Vec::new()));
     }
 
+    let phase_started = Instant::now();
     let mut entries = build_entries(data, order, &context_ids, position_bits);
     drop(context_ids);
+    eprintln!(
+        "[ngram-fit] order={order}: built {} entries in {:.3}s; sorting",
+        entries.len(),
+        phase_started.elapsed().as_secs_f64()
+    );
+    let sort_started = Instant::now();
     entries.sort_unstable();
+    eprintln!(
+        "[ngram-fit] order={order}: sort finished in {:.3}s; aggregating",
+        sort_started.elapsed().as_secs_f64()
+    );
 
     let mask = position_mask(position_bits);
     let mut next_ids = vec![0_u32; data.len() + 1];
@@ -410,6 +425,13 @@ fn score_and_advance(
         observed_ngrams,
         seconds: started.elapsed().as_secs_f64(),
     };
+    eprintln!(
+        "[ngram-fit] order={order}: done in {:.3}s | contexts={} | ngrams={} | total_nats={:.3}",
+        score.seconds,
+        score.observed_contexts,
+        score.observed_ngrams,
+        score.total_nats
+    );
     Ok((score, next_ids, next_representatives))
 }
 
@@ -428,9 +450,14 @@ fn evaluate_orders(data: &[u8], orders: &[usize], gamma: &GammaCache) -> io::Res
     let mut saturated_at = None;
 
     for order in 0..=maximum {
+        eprintln!("[ngram-fit] sweep progress: order {order}/{maximum}");
         if let Some(saturation_order) = saturated_at {
             if requested.contains(&order) {
-                scores.push(uniform_score(order, data.len(), 0.0));
+                let score = uniform_score(order, data.len(), 0.0);
+                eprintln!(
+                    "[ngram-fit] order={order}: analytically uniform after saturation at order {saturation_order}"
+                );
+                scores.push(score);
             }
             if order == saturation_order {
                 unreachable!("saturation applies only to later orders");
@@ -482,6 +509,10 @@ fn dump_best_model(data: &[u8], best: &Score, path: &Path, gamma: &GammaCache) -
     let mut representatives = vec![0_u32];
 
     for order in 0..=best.order {
+        eprintln!(
+            "[ngram-fit] model dump replay: order {order}/{}",
+            best.order
+        );
         let dump_file = if order == best.order {
             let file = File::create(path)?;
             let mut writer = BufWriter::new(file);
@@ -499,6 +530,12 @@ fn dump_best_model(data: &[u8], best: &Score, path: &Path, gamma: &GammaCache) -
         };
 
         let mut dump_file = dump_file;
+        if order == best.order {
+            eprintln!(
+                "[ngram-fit] writing sparse best-order model to {:?}",
+                path
+            );
+        }
         let (score, next_ids, next_representatives) = score_and_advance(
             data,
             order,
@@ -530,6 +567,11 @@ fn run(args: &Args) -> io::Result<()> {
     }
     let gamma = GammaCache::new();
     let uniform_nats = data.len() as f64 * 8.0 * LN_2;
+    let maximum_order = *args.orders.iter().max().unwrap_or(&0);
+    eprintln!(
+        "[ngram-fit] loaded {} bytes; evaluating orders 0..={maximum_order}",
+        data.len()
+    );
     let scores = evaluate_orders(&data, &args.orders, &gamma)?;
     let kt = scores
         .iter()
@@ -582,6 +624,10 @@ fn run(args: &Args) -> io::Result<()> {
 
     if let Some(path) = &args.dump_best {
         let dump_started = Instant::now();
+        eprintln!(
+            "[ngram-fit] sweep complete; replaying best order {} for model dump",
+            best.order
+        );
         dump_best_model(&data, best, path, &gamma)?;
         println!("model_dump: {:?}", path);
         println!(
