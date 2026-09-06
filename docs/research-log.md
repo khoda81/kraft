@@ -1,5 +1,14 @@
 # Research log
 
+## 2026-09-06 — Rust 1.98.1 becomes the project floor
+
+**Request:** remove the Rust 1.85 compatibility target and move active development completely to Rust 1.98.1.
+
+**Work:** raised `Cargo.toml`'s `rust-version` to 1.98.1, restored `rust-toolchain.toml` pinned to 1.98.1 with rustfmt/Clippy, and simplified CI to test the pinned toolchain plus current stable. Historical 1.85 results remain unchanged as historical records.
+
+**Validation:** pending the new CI run on `feat/mixture-model`.
+
+
 ## 2026-09-06 — Bayesian learner mixture and coding ratio
 
 **Request:** finish the generic learner mixture as exact Bayesian model averaging, where the model-weight ratio is multiplied by relative predictive likelihood, and replace bits-per-byte with a higher-is-better coding ratio.
