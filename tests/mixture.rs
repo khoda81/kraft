@@ -1,7 +1,4 @@
-use kraft::{
-    Distribution, Model,
-    models::mixture::Mixture,
-};
+use kraft::{Distribution, Model, models::mixture::Mixture};
 
 #[derive(Debug, Clone, Copy)]
 struct Bernoulli {
