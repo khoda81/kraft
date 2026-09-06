@@ -9,15 +9,7 @@
 //! under exact integrated Dirichlet-1/2 evidence, producing a deterministic
 //! full-corpus curve from one context through all 256 byte contexts.
 
-use std::{
-    env,
-    ffi::OsString,
-    fs,
-    io,
-    path::PathBuf,
-    process::ExitCode,
-    time::Instant,
-};
+use std::{env, ffi::OsString, fs, io, path::PathBuf, process::ExitCode, time::Instant};
 
 const ALPHABET: usize = 256;
 const JEFFREYS_ALPHA: f64 = 0.5;
@@ -210,10 +202,10 @@ fn bigram_stats(data: &[u8]) -> BigramStats {
 
 fn fit_curve(stats: &BigramStats, requested: &[usize]) -> Vec<CurvePoint> {
     let mut clusters = vec![Cluster::empty(); ALPHABET];
-    for previous in 0..ALPHABET {
+    for (previous, cluster) in clusters.iter_mut().enumerate() {
         let counts = stats.rows[previous];
         let total = stats.row_totals[previous];
-        clusters[previous] = Cluster {
+        *cluster = Cluster {
             active: true,
             counts,
             total,
@@ -299,10 +291,9 @@ fn fit_curve(stats: &BigramStats, requested: &[usize]) -> Vec<CurvePoint> {
             } else {
                 (other, left)
             };
-            merge_scores[score_index(a, b)] =
-                merged_ln_evidence(&clusters[a], &clusters[b])
-                    - clusters[a].evidence
-                    - clusters[b].evidence;
+            merge_scores[score_index(a, b)] = merged_ln_evidence(&clusters[a], &clusters[b])
+                - clusters[a].evidence
+                - clusters[b].evidence;
         }
     }
 
