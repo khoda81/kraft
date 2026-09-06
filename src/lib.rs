@@ -2,6 +2,7 @@
 
 pub mod baselines;
 pub mod evaluate;
+pub mod fsm;
 pub mod model;
 
 pub use evaluate::{Evaluation, evaluate, evaluate_with_costs};
