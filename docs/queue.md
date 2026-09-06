@@ -6,7 +6,7 @@ Updated: 2026-09-06. Work from the first unblocked item. `[ ]` is pending, `[x]`
 
 - [x] Q0 — Bootstrap repository, Rust crate, CI definitions, and research notebook. Validation/deployment status: [log](research-log.md).
 - [x] B0 — Implement the user's generic model/distribution interface, streaming byte coding evaluator, local-file CLI, and simple baselines. See [harness](harness.md).
-- [ ] B1 — Run uniform and adaptive unigram on the user's local enwik8, initially a short prefix then the full file. Record input hash/name, revision, command, total cost, and bits/byte. **Depends on local dataset access; harness ready.**
+- [ ] B1 — Complete the enwik8 baseline campaign. **Partial:** the user's million-byte unigram runs on Rust 1.85.0 and 1.98.1 are [recorded](experiments/B1-enwik8-baseline.md). Remaining: input hash/environment metadata and full-file uniform/unigram results. **Depends on local dataset access.**
 - [ ] Q1 — Specify the exact tiny finite-state family. Deliverable: a decision record covering prediction/transition order, emission law, start state, finite bounds, prior, and a hand-computed one-state example. **No dependency.**
 - [ ] Q2 — Implement scalar models and exhaustive mixture; add independent E0 checks. **Depends on Q1.** Done when hand calculations and sequence marginal likelihood identities pass.
 - [ ] Q3 — Extend the existing byte runner with automatic manifests and synthetic binary generators for E0. Byte evaluation/CLI is complete under B0; generators/manifests remain pending. **Depends on Q2 for E0 integration.** Done when a clean checkout reproduces a synthetic run with manifest and per-step metrics.

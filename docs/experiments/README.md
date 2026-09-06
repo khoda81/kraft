@@ -1,6 +1,6 @@
 # Experiment plan
 
-The byte harness is implemented and tested; the first local dataset campaign B1 is **planned, not run**. See [harness](../harness.md) for the initial command and data contract. B1 compares uniform and adaptive unigram total coding costs on an identical enwik8 prefix, then full file, with exact input/hash and command recorded. No corpus score is available yet.
+The byte harness is implemented and tested; B1 is **partially run**. The [initial enwik8 prefix record](B1-enwik8-baseline.md) captures two user-reported unigram runs with equal printed coding costs across Rust 1.85.0 and 1.98.1. Full-file uniform/unigram results and input metadata remain pending. See [harness](../harness.md) for commands and scoring rules.
 
 The finite-mixture campaigns below are also **planned, not run**; they remain a separate correctness/search track. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
 
