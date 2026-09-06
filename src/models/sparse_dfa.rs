@@ -192,10 +192,7 @@ impl SparseDfa {
         }
     }
 
-    pub fn with_added_override(
-        &self,
-        edge: SparseOverride,
-    ) -> Result<Self, SparseDfaError> {
+    pub fn with_added_override(&self, edge: SparseOverride) -> Result<Self, SparseDfaError> {
         let mut overrides = self.overrides.clone();
         overrides.push(edge);
         Self::new(self.states, self.topology, overrides)
@@ -229,11 +226,7 @@ impl SparseDfa {
         let ln_key_prior = -ln_binomial(keys, k);
         let ln_destination_prior = -(k as f64) * ((states - 1) as f64).ln();
 
-        ln_state_prior
-            + ln_topology_prior
-            + ln_k_prior
-            + ln_key_prior
-            + ln_destination_prior
+        ln_state_prior + ln_topology_prior + ln_k_prior + ln_key_prior + ln_destination_prior
     }
 
     pub fn prior_bits(&self) -> f64 {
