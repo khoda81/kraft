@@ -1,5 +1,16 @@
 # Research log
 
+## 2026-09-06 — Bayesian learner mixture and coding ratio
+
+**Request:** finish the generic learner mixture as exact Bayesian model averaging, where the model-weight ratio is multiplied by relative predictive likelihood, and replace bits-per-byte with a higher-is-better coding ratio.
+
+**Work:** completed `Mixture<A, B>` with equal or explicit prior log odds, stable log-space predictive marginalization, posterior odds updates from `ln P_A - ln P_B`, and updates to both component learners. Added independent tests for equal-prior averaging, likelihood-ratio odds updates, the sequential Bayesian marginal-likelihood identity, and exact-zero support behavior. Replaced bits-per-byte with coding ratio `baseline_cost / model_cost`; the CLI now reports the uniform-relative ratio. Updated B1's recorded prefix metric accordingly.
+
+**Validation:** pending repository CI on `feat/mixture-model`; no new corpus experiment was run.
+
+**Maintenance:** commit `3c6d09f` removed the development toolchain file, so this branch also repairs CI to use MSRV plus current stable (D014).
+
+
 ## 2026-09-06 — Toolchain update and first enwik8 prefix result
 
 **User work:** upgraded the development toolchain to Rust 1.98.1 and pushed `1fc543fef87e`; supplied unigram results for the first million enwik8 bytes under Rust 1.85.0 and 1.98.1.
