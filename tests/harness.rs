@@ -166,7 +166,6 @@ fn kt_distribution_is_normalized_before_and_after_learning() {
     }
 }
 
-
 #[test]
 fn coding_ratio_is_baseline_cost_over_model_cost() {
     let model = Evaluation {
