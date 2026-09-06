@@ -8,12 +8,12 @@ Byte harness ready; the first user-reported enwik8 prefix baseline is recorded. 
 
 ## Implemented
 
-- Minimal dependency-free Rust library with declared MSRV and stable CI coverage.
+- Minimal dependency-free Rust library pinned to Rust 1.98.1, which is also the declared minimum supported Rust version; CI additionally checks current stable.
 - Stable log-weight normalization with zero-mass/error handling and numerical unit tests.
 - Generic `Model<T>` / `Distribution<T>` traits, streaming byte evaluator, optional per-byte cost sink, and local-file CLI.
 - Uniform-byte and Dirichlet-1/2 adaptive unigram baselines. See [harness](harness.md).
 - Generic two-learner Bayesian `Mixture<A, B>` with posterior-odds updates from coding advantage; implemented and CI-validated on `feat/mixture-model`.
-- Higher-is-better coding ratio (`baseline_cost / model_cost`), including the uniform-relative compression ratio, replaces bits-per-byte in the harness output on that branch. CI run 34035684830 passed Rust 1.85.1, stable 1.98.1, formatting, Clippy, tests, rustdoc, and documentation links.
+- Higher-is-better coding ratio (`baseline_cost / model_cost`), including the uniform-relative compression ratio, replaces bits-per-byte in the harness output on that branch. CI run 34035684830 validated the mixture before the toolchain-floor change. The current branch now targets Rust 1.98.1 plus stable; fresh CI validation is pending.
 - CI for formatting, Clippy, tests, rustdoc, and local Markdown file links; dependency-update configuration and contribution templates.
 - Research context, proposed architecture, experiment protocols, and prioritized queue.
 - GitHub description and all seven research topics configured; confirmed by user-provided CLI output.
