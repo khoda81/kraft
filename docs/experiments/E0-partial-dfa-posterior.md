@@ -1,6 +1,6 @@
 # E0 — Exact lazy DFA posterior growth
 
-Status: implementation on feat/partial-dfa-posterior; validation pending.
+Status: implementation and oracle invariants validated on feat/partial-dfa-posterior. CI run 34040037792 passed formatting, Clippy, tests, rustdoc, and documentation links on Rust 1.98.1.
 
 ## Question
 
