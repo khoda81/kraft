@@ -3,7 +3,9 @@
 //! The prior itself is exact and proper; this binary searches for high-joint-mass
 //! descriptions. Every returned candidate h certifies
 //!
-//!     C_sparse_mixture(x) <= C_h(x) - ln P(h).
+//! ```text
+//! C_sparse_mixture(x) <= C_h(x) - ln P(h).
+//! ```
 //!
 //! so heuristic search quality affects tightness, not validity of the bound.
 
