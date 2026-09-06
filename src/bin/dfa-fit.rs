@@ -9,16 +9,8 @@
 //! The 512-bit gap is only 64 bytes over the entire corpus.
 
 use std::{
-    cmp::Ordering,
-    collections::HashSet,
-    env,
-    ffi::OsString,
-    fs,
-    io,
-    path::PathBuf,
-    process::ExitCode,
-    thread,
-    time::Instant,
+    cmp::Ordering, collections::HashSet, env, ffi::OsString, fs, io, path::PathBuf,
+    process::ExitCode, thread, time::Instant,
 };
 
 const ALPHABET: usize = 256;
@@ -100,7 +92,7 @@ impl Dfa2 {
     fn hex_row(&self, state: usize) -> String {
         let row = &self.transition[state * ALPHABET..(state + 1) * ALPHABET];
         let mut output = String::with_capacity(ALPHABET / 4);
-        for nibble in row.chunks_exact(4) {
+        for nibble in row.as_chunks::<4>().0 {
             let value = nibble[0] | (nibble[1] << 1) | (nibble[2] << 2) | (nibble[3] << 3);
             output.push(char::from_digit(u32::from(value), 16).expect("nibble is hexadecimal"));
         }
@@ -138,21 +130,18 @@ impl BigramStats {
         }
     }
 
-    fn reset_counts(
-        &self,
-        assignment: &[u8; ALPHABET],
-    ) -> ([[u64; ALPHABET]; 2], [u64; 2]) {
+    fn reset_counts(&self, assignment: &[u8; ALPHABET]) -> ([[u64; ALPHABET]; 2], [u64; 2]) {
         let mut counts = [[0_u64; ALPHABET]; 2];
         let mut totals = [0_u64; 2];
         if let Some(first) = self.first {
             counts[0][usize::from(first)] += 1;
             totals[0] += 1;
         }
-        for previous in 0..ALPHABET {
-            let state = usize::from(assignment[previous]);
+        for (previous, &assigned_state) in assignment.iter().enumerate() {
+            let state = usize::from(assigned_state);
             totals[state] += self.row_totals[previous];
-            for next in 0..ALPHABET {
-                counts[state][next] += self.rows[previous][next];
+            for (next, &amount) in self.rows[previous].iter().enumerate() {
+                counts[state][next] += amount;
             }
         }
         (counts, totals)
@@ -359,8 +348,7 @@ fn reset_move_delta(
         + ln_gamma(totals[to] as f64 + JEFFREYS_TOTAL)
         - ln_gamma((totals[to] + row_total) as f64 + JEFFREYS_TOTAL);
 
-    for next in 0..ALPHABET {
-        let amount = stats.rows[previous][next];
+    for (next, &amount) in stats.rows[previous].iter().enumerate() {
         if amount == 0 {
             continue;
         }
@@ -383,8 +371,7 @@ fn apply_reset_move(
     let row_total = stats.row_totals[previous];
     totals[from] -= row_total;
     totals[to] += row_total;
-    for next in 0..ALPHABET {
-        let amount = stats.rows[previous][next];
+    for (next, &amount) in stats.rows[previous].iter().enumerate() {
         counts[from][next] -= amount;
         counts[to][next] += amount;
     }
@@ -403,9 +390,9 @@ fn fit_reset_dfa(stats: &BigramStats, restarts: usize, seed: u64) -> Scored {
     for restart in 0..restarts {
         let mut assignment = [0_u8; ALPHABET];
         if restart != 0 {
-            for byte in 0..ALPHABET {
+            for (byte, assigned_state) in assignment.iter_mut().enumerate() {
                 if stats.row_totals[byte] != 0 {
-                    assignment[byte] = (rng.next_u64() & 1) as u8;
+                    *assigned_state = (rng.next_u64() & 1) as u8;
                 }
             }
         }
@@ -419,14 +406,7 @@ fn fit_reset_dfa(stats: &BigramStats, restarts: usize, seed: u64) -> Scored {
                 let to = 1 - from;
                 let delta = reset_move_delta(stats, &counts, &totals, previous, from, to);
                 if delta > 1e-10 {
-                    apply_reset_move(
-                        stats,
-                        &mut counts,
-                        &mut totals,
-                        previous,
-                        from,
-                        to,
-                    );
+                    apply_reset_move(stats, &mut counts, &mut totals, previous, from, to);
                     assignment[previous] = to as u8;
                     changed = true;
                 }
@@ -490,12 +470,7 @@ fn add_hall(hall: &mut Vec<Scored>, candidate: Dfa2, ln_evidence: f64, capacity:
     hall.truncate(capacity);
 }
 
-fn cem_search(
-    data: &[u8],
-    seed_table: &Dfa2,
-    args: &Args,
-    kt_ln_evidence: f64,
-) -> Vec<Scored> {
+fn cem_search(data: &[u8], seed_table: &Dfa2, args: &Args, kt_ln_evidence: f64) -> Vec<Scored> {
     let hall_capacity = args.screen_candidates.max(args.finalists).max(8) * 2;
     let mut hall = Vec::new();
     let mut master_rng = SplitMix64::new(args.seed ^ 0x4345_4d5f_4446_4132);
@@ -541,14 +516,14 @@ fn cem_search(
             }
 
             let elite_count = args.elite.min(indices.len());
-            for bit in 0..TABLE_BITS {
+            for (bit, probability) in probabilities.iter_mut().enumerate() {
                 let mean = indices
                     .iter()
                     .take(elite_count)
                     .map(|&index| f64::from(candidates[index].transition[bit]))
                     .sum::<f64>()
                     / elite_count as f64;
-                probabilities[bit] = (0.55 * probabilities[bit] + 0.45 * mean).clamp(0.02, 0.98);
+                *probability = (0.55 * *probability + 0.45 * mean).clamp(0.02, 0.98);
             }
 
             let best_cost = -scores[indices[0]];
@@ -568,12 +543,7 @@ fn cem_search(
     hall
 }
 
-fn rank_candidates(
-    data: &[u8],
-    candidates: Vec<Dfa2>,
-    keep: usize,
-    threads: usize,
-) -> Vec<Scored> {
+fn rank_candidates(data: &[u8], candidates: Vec<Dfa2>, keep: usize, threads: usize) -> Vec<Scored> {
     let mut unique = HashSet::new();
     let candidates: Vec<_> = candidates
         .into_iter()
@@ -662,8 +632,7 @@ fn run(args: &Args) -> io::Result<()> {
     );
 
     let mut search_ranked = hall;
-    search_ranked
-        .sort_by(|left, right| cmp_score_desc(&left.ln_evidence, &right.ln_evidence));
+    search_ranked.sort_by(|left, right| cmp_score_desc(&left.ln_evidence, &right.ln_evidence));
     search_ranked.truncate(args.screen_candidates.min(search_ranked.len()));
 
     let screen_len = args.screen_bytes.min(data.len());
@@ -800,8 +769,8 @@ mod tests {
         let data = b"abracadabra abracadabra";
         let stats = BigramStats::from_data(data);
         let mut assignment = [0_u8; ALPHABET];
-        for byte in 0..ALPHABET {
-            assignment[byte] = (byte.count_ones() & 1) as u8;
+        for (byte, assigned_state) in assignment.iter_mut().enumerate() {
+            *assigned_state = (byte.count_ones() & 1) as u8;
         }
         let table = Dfa2::reset(&assignment);
         let (counts, totals) = stats.reset_counts(&assignment);
