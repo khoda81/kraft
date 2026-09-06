@@ -31,17 +31,18 @@ Input: local file named enwik8, 100,000,000 bytes in the earlier listing; first 
 
 ## Results
 
-Source: user-pasted CLI summaries. Both runs printed identical coding metrics to the displayed precision.
+Source: user-pasted CLI summaries. Both runs printed identical absolute coding metrics to the displayed precision. Coding bytes and the ratio below are derived from the recorded total bits using the updated reporting convention; no new run was performed.
 
 | Metric | Rust 1.85.0 | Rust 1.98.1 |
 | --- | ---: | ---: |
 | Bytes scored | 1,000,000 | 1,000,000 |
 | Total nats | 3507734.978874585126 | 3507734.978874585126 |
 | Total bits | 5060591.858775116503 | 5060591.858775116503 |
-| Bits/byte | 5.060591858775 | 5.060591858775 |
+| Ideal coding bytes (derived) | 632573.9823468896 | 632573.9823468896 |
+| Coding ratio to uniform (derived) | 0.632573982347 | 0.632573982347 |
 | Evaluation seconds | 0.019772 | 0.027971 |
 
-The analytic uniform-byte reference for this prefix is 8,000,000 bits (8 bits/byte); a uniform corpus run has not been supplied. The measured unigram cost is approximately 36.74% lower than that analytic reference. This excludes coding overhead such as file length/EOF and is not a measured compression ratio from an encoder.
+The analytic uniform-byte reference for this prefix is 8,000,000 bits (1 MB of ideal coding cost); a uniform corpus run has not been supplied. The measured unigram cost is approximately 36.74% lower than that analytic reference. This excludes coding overhead such as file length/EOF and is not a measured compression ratio from an encoder.
 
 ## Interpretation and limitations
 

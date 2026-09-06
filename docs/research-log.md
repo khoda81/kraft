@@ -1,5 +1,13 @@
 # Research log
 
+## 2026-09-06 — Coding ratio reporting
+
+**User direction:** use absolute coding units and the ratio of two models' coding costs. The ratio to uniform represents the ideal compressed/original size ratio.
+
+**Work:** replaced per-symbol rate reporting with absolute nat/bit/byte totals and coding ratio to uniform in the CLI. Added general model-report comparison and explicit undefined/infinite ratio behavior. Updated methodology, contributor instructions, and the B1 table with ratios derived from the existing absolute costs; no benchmark was rerun. See D012.
+
+**Validation:** Rust 1.98.1 passed formatting, Clippy, four numerical tests, ten harness tests, one doctest, and rustdoc. Ratio tests cover unit conversion, model comparison, unequal lengths, zero/invalid/infinite costs, and the uniform reference. CLI smoke checks verified absolute totals, ratios, and empty input. Local Markdown links passed; CI will also check the minimum supported compiler and current stable.
+
 ## 2026-09-06 — Toolchain update and first enwik8 prefix result
 
 **User work:** upgraded the development toolchain to Rust 1.98.1 and pushed `1fc543fef87e`; supplied unigram results for the first million enwik8 bytes under Rust 1.85.0 and 1.98.1.

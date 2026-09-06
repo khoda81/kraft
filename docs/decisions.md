@@ -36,3 +36,7 @@ This supersedes the bootstrap ordering that made the first runner depend on fini
 ## 2026-09-06 — D011: current development pin, separate minimum support
 
 The user committed Rust 1.98.1 as the development toolchain in `1fc543fef87e`. Preserve that version pin rather than replacing it with a moving `stable` channel. `rust-toolchain.toml` is authoritative for development and formatting. `Cargo.toml` separately declares minimum supported Rust; retaining that compatibility check does not force local development onto that compiler. CI reads both files and also checks current stable, avoiding another duplicated version pin in workflow YAML.
+
+## 2026-09-06 — D012: absolute costs and model coding ratios (user-directed)
+
+Use absolute coding cost units (nat, bit, byte, KB, MB, etc.) and dimensionless coding ratios, replacing per-symbol cost-rate reporting. Define `R(A/B) = C_A / C_B` on the same data/protocol; both costs must use the same unit, so the ratio is log-unit invariant. Lower is better for A. Uniform is the default reference and yields the ideal compressed/original size ratio. Keep the model interfaces, prequential objective, and raw accumulated costs unchanged.
