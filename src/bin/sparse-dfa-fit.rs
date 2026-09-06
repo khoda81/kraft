@@ -107,6 +107,10 @@ struct Args {
     /// Write the best sparse DFA description here.
     #[arg(long, default_value = "artifacts/sparse-dfa-best.tsv")]
     dump_best: PathBuf,
+
+    /// Write every full-corpus finalist DFA here.
+    #[arg(long, default_value = "artifacts/sparse-dfa-finalists.tsv")]
+    dump_finalists: PathBuf,
 }
 
 impl Args {
@@ -451,6 +455,72 @@ fn write_best(path: &PathBuf, candidate: &Candidate) -> io::Result<()> {
     fs::write(path, output)
 }
 
+
+fn format_overrides(candidate: &Candidate) -> String {
+    candidate
+        .model
+        .overrides()
+        .iter()
+        .map(|edge| {
+            let byte = if edge.byte.is_ascii_graphic() || edge.byte == b' ' {
+                format!("{}:{:02x}('{}')->{}", edge.source, edge.byte, edge.byte as char, edge.destination)
+            } else {
+                format!("{}:{:02x}->{}", edge.source, edge.byte, edge.destination)
+            };
+            byte
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn write_finalists(path: &PathBuf, finalists: &[Candidate]) -> io::Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+
+    let mut output = String::new();
+    output.push_str("# KRAFT sparse DFA full-corpus finalists\n");
+    output.push_str(
+        "rank\tstates\ttopology\texceptions\tprior_bits\tln_evidence\tln_joint\tsource\tbyte_hex\tdestination\n",
+    );
+
+    for (rank, candidate) in finalists.iter().enumerate() {
+        if candidate.model.overrides().is_empty() {
+            output.push_str(&format!(
+                "{}\t{}\t{}\t{}\t{:.12}\t{:.12}\t{:.12}\t\t\t\n",
+                rank + 1,
+                candidate.model.states(),
+                candidate.model.topology().as_str(),
+                candidate.exceptions(),
+                candidate.model.prior_bits(),
+                candidate.ln_evidence,
+                candidate.ln_joint(),
+            ));
+            continue;
+        }
+
+        for edge in candidate.model.overrides() {
+            output.push_str(&format!(
+                "{}\t{}\t{}\t{}\t{:.12}\t{:.12}\t{:.12}\t{}\t{:02x}\t{}\n",
+                rank + 1,
+                candidate.model.states(),
+                candidate.model.topology().as_str(),
+                candidate.exceptions(),
+                candidate.model.prior_bits(),
+                candidate.ln_evidence,
+                candidate.ln_joint(),
+                edge.source,
+                edge.byte,
+                edge.destination,
+            ));
+        }
+    }
+
+    fs::write(path, output)
+}
+
 fn run(args: &Args) -> io::Result<()> {
     let started = Instant::now();
     let data = fs::read(&args.path)?;
@@ -578,10 +648,25 @@ fn run(args: &Args) -> io::Result<()> {
         );
     }
 
+    println!();
+    println!("finalist_dfas:");
+    for (rank, candidate) in finalists.iter().enumerate() {
+        println!(
+            "{}\tN={}\ttopology={}\tK={}\t{}",
+            rank + 1,
+            candidate.model.states(),
+            candidate.model.topology().as_str(),
+            candidate.exceptions(),
+            format_overrides(candidate),
+        );
+    }
+
     let best = &finalists[0];
     write_best(&args.dump_best, best)?;
+    write_finalists(&args.dump_finalists, &finalists)?;
     println!();
     println!("best_model_dump: {:?}", args.dump_best);
+    println!("finalists_dump: {:?}", args.dump_finalists);
     println!("best_states: {}", best.model.states());
     println!("best_topology: {}", best.model.topology().as_str());
     println!("best_exceptions: {}", best.exceptions());
