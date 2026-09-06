@@ -375,10 +375,7 @@ mod tests {
         let posterior = ExactDfaPriorPosterior::new(4).unwrap();
         let diagnostics = posterior.diagnostics();
         assert!((diagnostics.omitted_prior_mass_upper - 1.0 / 16.0).abs() < 1e-14);
-        assert!(
-            (diagnostics.ln_omitted_joint_mass_upper - (1.0_f64 / 16.0).ln()).abs()
-                < 1e-14
-        );
+        assert!((diagnostics.ln_omitted_joint_mass_upper - (1.0_f64 / 16.0).ln()).abs() < 1e-14);
         assert!(diagnostics.omitted_posterior_mass_upper > 0.0);
         assert!(diagnostics.omitted_posterior_mass_upper < 1.0);
         assert!(diagnostics.retained_to_full_kl_upper_nats > 0.0);
@@ -390,8 +387,6 @@ mod tests {
         posterior.observe(b'A');
         let diagnostics = posterior.diagnostics();
         let expected_tail_joint = (1.0_f64 / 8.0) * (1.0 / 256.0);
-        assert!(
-            (diagnostics.ln_omitted_joint_mass_upper - expected_tail_joint.ln()).abs() < 1e-14
-        );
+        assert!((diagnostics.ln_omitted_joint_mass_upper - expected_tail_joint.ln()).abs() < 1e-14);
     }
 }
