@@ -15,9 +15,27 @@ impl Evaluation {
         self.total_nats / std::f64::consts::LN_2
     }
 
-    /// Empty input has zero total cost and no defined average cost.
-    pub fn bits_per_byte(&self) -> Option<f64> {
-        (self.bytes != 0).then(|| self.total_bits() / self.bytes as f64)
+    /// Coding ratio against the uniform byte model; higher is better.
+    ///
+    /// The ratio is uniform coding cost divided by this model's coding cost.
+    /// It is therefore independent of logarithm base. A value of 1.0 matches
+    /// uniform coding, values above 1.0 compress better, and values below 1.0
+    /// are worse. Empty input has no defined ratio.
+    pub fn coding_ratio_uniform(&self) -> Option<f64> {
+        (self.bytes != 0).then(|| {
+            let uniform_nats = self.bytes as f64 * 8.0 * std::f64::consts::LN_2;
+            uniform_nats / self.total_nats
+        })
+    }
+
+    /// Coding ratio against another evaluation of the same byte count.
+    ///
+    /// This returns baseline_cost / self_cost, so higher means this evaluation
+    /// codes the data better than the baseline. Different or empty byte counts
+    /// are not comparable and return None.
+    pub fn coding_ratio_against(&self, baseline: &Self) -> Option<f64> {
+        (self.bytes != 0 && self.bytes == baseline.bytes)
+            .then(|| baseline.total_nats / self.total_nats)
     }
 }
 
