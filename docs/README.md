@@ -1,6 +1,6 @@
 # Research notebook
 
-Read these in order for a complete handoff:
+Start with the [byte harness](harness.md) to run the current code. Read these in order for a complete handoff:
 
 1. [Status](status.md): what exists, what has been tested, and the immediate next step.
 2. [Theory](theory.md): the project question and mathematical commitments.

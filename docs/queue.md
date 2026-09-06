@@ -5,9 +5,11 @@ Updated: 2026-09-06. Work from the first unblocked item. `[ ]` is pending, `[x]`
 ## Now
 
 - [x] Q0 — Bootstrap repository, Rust crate, CI definitions, and research notebook. Validation/deployment status: [log](research-log.md).
+- [x] B0 — Implement the user's generic model/distribution interface, streaming byte coding evaluator, local-file CLI, and simple baselines. See [harness](harness.md).
+- [ ] B1 — Run uniform and adaptive unigram on the user's local enwik8, initially a short prefix then the full file. Record input hash/name, revision, command, total cost, and bits/byte. **Depends on local dataset access; harness ready.**
 - [ ] Q1 — Specify the exact tiny finite-state family. Deliverable: a decision record covering prediction/transition order, emission law, start state, finite bounds, prior, and a hand-computed one-state example. **No dependency.**
 - [ ] Q2 — Implement scalar models and exhaustive mixture; add independent E0 checks. **Depends on Q1.** Done when hand calculations and sequence marginal likelihood identities pass.
-- [ ] Q3 — Build minimal reproducible runner and binary generators. **Depends on Q2.** Done when a clean checkout reproduces a short run with manifest and per-step metrics.
+- [ ] Q3 — Extend the existing byte runner with automatic manifests and synthetic binary generators for E0. Byte evaluation/CLI is complete under B0; generators/manifests remain pending. **Depends on Q2 for E0 integration.** Done when a clean checkout reproduces a synthetic run with manifest and per-step metrics.
 - [ ] Q4 — Run and document E0; update status with evidence and failure cases. **Depends on Q2–Q3.**
 
 ## Next

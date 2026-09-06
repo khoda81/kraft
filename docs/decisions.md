@@ -26,3 +26,9 @@ Date of initial capture: 2026-09-06. Earlier direction is reconstructed from the
 - O8: license. No license grant was selected during bootstrap.
 
 For changes, append a dated record stating evidence, alternatives, consequences, and superseded IDs. Do not silently rewrite an earlier accepted decision as though it had always been the plan.
+
+## 2026-09-06 — D010: byte harness first (user-directed)
+
+**Accepted:** expose `Model<T>::predict/observe` and `Distribution<T>::ln_prob`. Require `Model<u8>` for raw text evaluation. Minimize total coding cost on the sequential stream, scoring before every update. The user has local dataset files and supplied enwik8/enwik9 paths; do not label those results as WikiText.
+
+This supersedes the bootstrap ordering that made the first runner depend on finite-state enumeration and D008's binary-only initial benchmark proposal. Binary toy examples and the exact oracle remain useful correctness work. Compute accounting remains relevant to later scheduling comparisons but is not a replacement for the initial coding-cost objective. Added uniform-byte and Dirichlet-1/2 unigram baselines as harness checks; no particular finite-state family is chosen by this change.

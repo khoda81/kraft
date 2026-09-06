@@ -1,7 +1,11 @@
-//! KRAFT: compute-aware Bayesian program mixtures.
-//!
-//! The initial crate contains only the log-weight normalization primitive.
-//! Model enumeration, emissions, scheduling, and experiments are planned in docs/.
+//! KRAFT: compute-aware Bayesian program mixtures and prequential evaluation.
+
+pub mod baselines;
+pub mod evaluate;
+pub mod model;
+
+pub use evaluate::{Evaluation, evaluate, evaluate_with_costs};
+pub use model::{Distribution, Model};
 
 /// Why a set of log weights cannot define a categorical distribution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
