@@ -57,8 +57,7 @@ fn individual_fsm_distribution_is_normalized_before_and_after_learning() {
 fn one_state_exact_mixture_matches_the_single_model() {
     let bytes = b"KRAFT";
     let single = evaluate(&bytes[..], &mut BinaryKtFsm::from_rank(1, 0).unwrap()).unwrap();
-    let mixture =
-        evaluate(&bytes[..], &mut ExactFsmMixture::all_labeled(1, 1).unwrap()).unwrap();
+    let mixture = evaluate(&bytes[..], &mut ExactFsmMixture::all_labeled(1, 1).unwrap()).unwrap();
     assert!((single.total_nats - mixture.total_nats).abs() < 1e-12);
 }
 
