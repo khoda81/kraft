@@ -4,7 +4,7 @@ Updated: 2026-09-06 (UTC).
 
 ## Stage
 
-Byte harness ready; the first exact finite-state model family is specified and implemented on a feature branch pending CI validation. Full-corpus baseline comparison and finite-state experiments remain pending.
+Byte harness ready; the first exact finite-state model family is specified, implemented, and CI-validated on a feature branch. Full-corpus baseline comparison and finite-state experiments remain pending.
 
 ## Implemented
 
@@ -13,7 +13,7 @@ Byte harness ready; the first exact finite-state model family is specified and i
 - Generic `Model<T>` / `Distribution<T>` traits, streaming byte evaluator, optional per-byte cost sink, and local-file CLI.
 - Uniform-byte and Dirichlet-1/2 adaptive unigram baselines. See [harness](harness.md).
 - Q1 finite-state semantics: labeled binary transitions, state-zero start, MSB-first byte factorization, and integrated Beta(1/2, 1/2) emissions (D012).
-- Scalar `BinaryKtFsm` and guarded exact uniform mixtures over a fixed labeled state count are implemented on `feat/finite-state-oracle`; CI evidence is pending.
+- Scalar `BinaryKtFsm` and guarded exact uniform mixtures over a fixed labeled state count are implemented on `feat/finite-state-oracle`. CI run 34034335503 passed docs, formatting, Clippy, tests, and rustdoc on Rust 1.85.1 and stable 1.98.1.
 - CI for formatting, Clippy, tests, rustdoc, and local Markdown file links; dependency-update configuration and contribution templates.
 - Research context, proposed architecture, experiment protocols, and prioritized queue.
 - GitHub description and all seven research topics configured; confirmed by user-provided CLI output.
@@ -22,7 +22,7 @@ The validation and remote setup outcome is recorded in the [bootstrap log](resea
 
 ## Immediate next step
 
-**Validate Q2 in CI, then integrate E0 generators/runner support (Q3).** B1 full-file enwik8 metadata/results remain independently useful but require the user's local dataset.
+**Q3: integrate synthetic binary generators and runner support for E0.** B1 full-file enwik8 metadata/results remain independently useful but require the user's local dataset.
 
 ## Open questions / blockers
 
