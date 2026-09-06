@@ -14,7 +14,8 @@
 //! arenas, so posterior branches share their complete physical history.
 
 use std::{
-    collections::{HashMap, hash_map::Entry},
+    cmp::{Ordering, Reverse},
+    collections::{BinaryHeap, HashMap, hash_map::Entry},
     error::Error,
     fmt,
     hash::{DefaultHasher, Hash, Hasher},
@@ -759,6 +760,64 @@ impl ComponentMap {
     }
 }
 
+/// One assigned transition in an inspectable posterior component.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DfaAssignedTransition {
+    pub source: u16,
+    pub byte: u8,
+    pub destination: u16,
+}
+
+/// Sparse emission counts for one logical DFA state.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DfaStateEmissionCounts {
+    pub state: u16,
+    pub total: u32,
+    pub counts: Vec<(u8, u32)>,
+}
+
+/// An inspectable exact posterior component for one fixed-N DFA class.
+///
+/// This is an aggregate sufficient-state hypothesis, not a fully specified
+/// transition table: unobserved transitions remain marginalized.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DfaPosteriorComponent {
+    /// Posterior mass conditional on this fixed state-count class.
+    pub conditional_posterior_mass: f64,
+    /// Natural-log posterior mass conditional on this fixed state-count class.
+    pub conditional_ln_posterior: f64,
+    pub current_state: u16,
+    pub discovered_states: u16,
+    pub assigned_transitions: Vec<DfaAssignedTransition>,
+    pub emissions: Vec<DfaStateEmissionCounts>,
+}
+
+#[derive(Clone, Copy)]
+struct TopComponentRef<'a> {
+    ln_mass: f64,
+    component: &'a Component,
+}
+
+impl PartialEq for TopComponentRef<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        self.ln_mass.total_cmp(&other.ln_mass) == Ordering::Equal
+    }
+}
+
+impl Eq for TopComponentRef<'_> {}
+
+impl PartialOrd for TopComponentRef<'_> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for TopComponentRef<'_> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.ln_mass.total_cmp(&other.ln_mass)
+    }
+}
+
 /// Exact fixed-N Bayesian mixture over all labeled byte-input DFAs.
 ///
 /// The complete transition table has N^(256N) labeled possibilities. KRAFT never
@@ -826,6 +885,71 @@ impl ExactPartialDfaMixture {
     /// Exact natural-log marginal likelihood of the observed prefix.
     pub fn ln_evidence(&self) -> f64 {
         log_sum_exp(self.components.iter().map(|(_, ln_mass)| *ln_mass))
+    }
+
+    /// Highest-mass exact sufficient-state components in this fixed-N class.
+    ///
+    /// The returned masses are conditional on this state-count class. Unseen
+    /// transition entries remain marginalized inside each returned component.
+    pub fn top_components(&self, limit: usize) -> Vec<DfaPosteriorComponent> {
+        if limit == 0 || self.components.len() == 0 {
+            return Vec::new();
+        }
+
+        let ln_evidence = self.ln_evidence();
+        let mut heap: BinaryHeap<Reverse<TopComponentRef<'_>>> =
+            BinaryHeap::with_capacity(limit.min(self.components.len()));
+
+        for (component, &ln_mass) in self.components.iter() {
+            let candidate = TopComponentRef { ln_mass, component };
+            if heap.len() < limit {
+                heap.push(Reverse(candidate));
+            } else if heap
+                .peek()
+                .is_some_and(|smallest| ln_mass > smallest.0.ln_mass)
+            {
+                heap.pop();
+                heap.push(Reverse(candidate));
+            }
+        }
+
+        let mut selected: Vec<_> = heap.into_iter().map(|entry| entry.0).collect();
+        selected.sort_by(|left, right| right.ln_mass.total_cmp(&left.ln_mass));
+
+        selected
+            .into_iter()
+            .map(|selected| {
+                let component = selected.component;
+                let assigned_transitions = component
+                    .logical_edges(&self.transition_arena)
+                    .into_iter()
+                    .map(|edge| DfaAssignedTransition {
+                        source: edge.key >> 8,
+                        byte: edge.key as u8,
+                        destination: edge.destination,
+                    })
+                    .collect();
+                let emissions = component
+                    .emission_counts(&self.emission_arena)
+                    .into_iter()
+                    .enumerate()
+                    .map(|(state, counts)| DfaStateEmissionCounts {
+                        state: state as u16,
+                        total: counts.total,
+                        counts: counts.counts,
+                    })
+                    .collect();
+                let conditional_ln_posterior = selected.ln_mass - ln_evidence;
+                DfaPosteriorComponent {
+                    conditional_posterior_mass: conditional_ln_posterior.exp(),
+                    conditional_ln_posterior,
+                    current_state: component.current_state,
+                    discovered_states: component.discovered_states(),
+                    assigned_transitions,
+                    emissions,
+                }
+            })
+            .collect()
     }
 
     /// Number of unmerged children that the next observation would create.
