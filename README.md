@@ -19,7 +19,7 @@ KRAFT explores how to search and maintain a Bayesian mixture over small programs
 
 ## Development
 
-Install Rust through [rustup](https://rustup.rs/). The checked-in toolchain pins the development compiler; CI also checks the minimum supported version declared in Cargo.toml and current stable.
+Install Rust through [rustup](https://rustup.rs/). The repository currently has no dedicated development toolchain pin; CI checks the minimum supported version declared in Cargo.toml and current stable.
 
 ```sh
 cargo test --locked
