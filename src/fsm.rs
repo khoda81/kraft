@@ -13,15 +13,22 @@ use crate::{Distribution, Model};
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FsmError {
     EmptyTable,
-    TooManyStates { state_count: usize },
+    TooManyStates {
+        state_count: usize,
+    },
     InvalidTarget {
         state: usize,
         bit: u8,
         target: u16,
         state_count: u16,
     },
-    TableCountOverflow { state_count: u16 },
-    TooManyModels { required: u128, limit: usize },
+    TableCountOverflow {
+        state_count: u16,
+    },
+    TooManyModels {
+        required: u128,
+        limit: usize,
+    },
     EmptyMixture,
 }
 
@@ -30,7 +37,10 @@ impl fmt::Display for FsmError {
         match self {
             Self::EmptyTable => write!(formatter, "an FSM needs at least one state"),
             Self::TooManyStates { state_count } => {
-                write!(formatter, "{state_count} states do not fit in a u16 state id")
+                write!(
+                    formatter,
+                    "{state_count} states do not fit in a u16 state id"
+                )
             }
             Self::InvalidTarget {
                 state,
@@ -189,11 +199,10 @@ impl BinaryKtFsm {
     pub fn byte_ln_prob(&self, byte: u8) -> f64 {
         let mut visited_states = [0_u16; 8];
         let mut visited_bits = [0_u8; 8];
-        let mut visited = 0_usize;
         let mut state = self.state;
         let mut total_ln_probability = 0.0;
 
-        for shift in (0..8).rev() {
+        for (visited, shift) in (0..8).rev().enumerate() {
             let bit = (byte >> shift) & 1;
             let bit_index = usize::from(bit);
             let state_index = usize::from(state);
@@ -211,13 +220,11 @@ impl BinaryKtFsm {
 
             let base = self.counts[state_index];
             let numerator = base[bit_index] as f64 + f64::from(extra_bit) + 0.5;
-            let denominator =
-                base[0] as f64 + base[1] as f64 + f64::from(extra_total) + 1.0;
+            let denominator = base[0] as f64 + base[1] as f64 + f64::from(extra_total) + 1.0;
             total_ln_probability += (numerator / denominator).ln();
 
             visited_states[visited] = state;
             visited_bits[visited] = bit;
-            visited += 1;
             state = self.table.next(state, bit);
         }
 
@@ -280,8 +287,8 @@ impl ExactFsmMixture {
         if state_count == 0 {
             return Err(FsmError::EmptyTable);
         }
-        let required = labeled_table_count(state_count)
-            .ok_or(FsmError::TableCountOverflow { state_count })?;
+        let required =
+            labeled_table_count(state_count).ok_or(FsmError::TableCountOverflow { state_count })?;
         if required > max_models as u128 {
             return Err(FsmError::TooManyModels {
                 required,
