@@ -1,6 +1,4 @@
 use std::{
-    env,
-    ffi::OsString,
     fs::{self, File},
     io::{self, BufReader, BufWriter, Read, Write},
     path::{Path, PathBuf},
@@ -8,156 +6,87 @@ use std::{
     time::Instant,
 };
 
+use clap::{Parser, ValueEnum};
 use kraft::{
     Distribution, Model,
     baselines::Kt,
     models::{dfa_prior::ExactDfaPriorPosterior, partial_dfa::DfaQuotient},
 };
 
-const HELP: &str = "Usage: dfa-bayes <file> [options]
+#[derive(Debug, Clone, Copy, ValueEnum)]
+enum QuotientArg {
+    Discovery,
+    Predictive,
+}
 
-Exact Bayesian inference for a finite prefix of a proper prior over all finite
-labeled byte-input DFAs.
+impl From<QuotientArg> for DfaQuotient {
+    fn from(value: QuotientArg) -> Self {
+        match value {
+            QuotientArg::Discovery => Self::Discovery,
+            QuotientArg::Predictive => Self::Predictive,
+        }
+    }
+}
 
-Prior:
-  P(N) = 2^-N, N >= 1
-  P(delta | N) = N^(-256N)
-
-Each DFA state uses an integrated Dirichlet-1/2 byte predictor.
-
-The implementation evaluates N=1..=max_states exactly and keeps a certified
-upper bound for all omitted N>max_states classes.
-
-Options:
-  --max-states N
-  --quotient discovery|predictive
-  --limit BYTES
-  --max-components N
-  --report-every N
-  --top-components N
-  --dump-top PATH
-
-Defaults:
-  --max-states 3
-  --quotient discovery
-  --limit 32
-  --max-components 2000000
-  --report-every 1
-  --top-components 100
-
-If --dump-top is provided, the highest-posterior sufficient-state aggregates
-are written at exit, including when the resource guard stops the run.
-
-The command stops before an observation whose total unmerged exact child count
-would exceed --max-components.";
-
-#[derive(Debug)]
+#[derive(Debug, Parser)]
+#[command(
+    about = "Exact Bayesian inference over a finite prefix of the proper recurrent-DFA prior",
+    long_about = "Evaluate N=1..=max-states exactly under the proper prior P(N)=2^-N and iid-uniform transition tables. Larger state-count classes remain represented by a certified omitted-posterior bound. Each DFA state integrates a Dirichlet-1/2 byte predictor."
+)]
 struct Args {
+    /// Input byte corpus.
+    #[arg(value_name = "FILE")]
     path: PathBuf,
+
+    /// Largest DFA state count evaluated exactly.
+    #[arg(long, default_value_t = 3)]
     max_states: u16,
-    quotient: DfaQuotient,
+
+    /// Exact quotient used inside each fixed-N posterior.
+    #[arg(long, value_enum, default_value_t = QuotientArg::Discovery)]
+    quotient: QuotientArg,
+
+    /// Maximum bytes to process.
+    #[arg(long, default_value_t = 32)]
     limit: u64,
+
+    /// Stop before a byte whose exact unmerged child count exceeds this value.
+    #[arg(long, default_value_t = 2_000_000)]
     max_components: usize,
+
+    /// Emit a diagnostics row every N processed bytes.
+    #[arg(long, default_value_t = 1)]
     report_every: u64,
+
+    /// Number of highest-mass sufficient-state aggregates to dump.
+    #[arg(long, default_value_t = 100)]
     top_components: usize,
+
+    /// Optional path for the highest-mass posterior aggregates.
+    #[arg(long)]
     dump_top: Option<PathBuf>,
+}
+
+impl Args {
+    fn validate(&self) -> io::Result<()> {
+        if !(1..=256).contains(&self.max_states) {
+            return Err(invalid("--max-states must be in 1..=256"));
+        }
+        if self.max_components == 0 {
+            return Err(invalid("--max-components must be positive"));
+        }
+        if self.report_every == 0 {
+            return Err(invalid("--report-every must be positive"));
+        }
+        if self.top_components == 0 {
+            return Err(invalid("--top-components must be positive"));
+        }
+        Ok(())
+    }
 }
 
 fn invalid(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message.into())
-}
-
-fn parse(args: impl IntoIterator<Item = OsString>) -> io::Result<Option<Args>> {
-    let mut args = args.into_iter();
-    let mut path = None;
-    let mut max_states = 3_u16;
-    let mut quotient = DfaQuotient::Discovery;
-    let mut limit = 32_u64;
-    let mut max_components = 2_000_000_usize;
-    let mut report_every = 1_u64;
-    let mut top_components = 100_usize;
-    let mut dump_top = None;
-    let mut positional = false;
-
-    while let Some(arg) = args.next() {
-        if !positional && (arg == "--help" || arg == "-h") {
-            return Ok(None);
-        }
-        if !positional && arg == "--" {
-            positional = true;
-            continue;
-        }
-
-        if !positional
-            && (arg == "--max-states"
-                || arg == "--quotient"
-                || arg == "--limit"
-                || arg == "--max-components"
-                || arg == "--report-every"
-                || arg == "--top-components"
-                || arg == "--dump-top")
-        {
-            let value = args
-                .next()
-                .ok_or_else(|| invalid(format!("missing value for {arg:?}")))?;
-            let text = value
-                .to_str()
-                .ok_or_else(|| invalid(format!("invalid UTF-8 value for {arg:?}")))?;
-
-            if arg == "--max-states" {
-                max_states = text
-                    .parse()
-                    .ok()
-                    .filter(|value| (1..=256).contains(value))
-                    .ok_or_else(|| invalid("--max-states must be an integer in 1..=256"))?;
-            } else if arg == "--quotient" {
-                quotient = match text {
-                    "discovery" => DfaQuotient::Discovery,
-                    "predictive" => DfaQuotient::Predictive,
-                    _ => return Err(invalid("--quotient must be discovery or predictive")),
-                };
-            } else if arg == "--limit" {
-                limit = text
-                    .parse()
-                    .map_err(|_| invalid("--limit must be a nonnegative integer"))?;
-            } else if arg == "--max-components" {
-                max_components = text
-                    .parse()
-                    .ok()
-                    .filter(|value| *value > 0)
-                    .ok_or_else(|| invalid("--max-components must be positive"))?;
-            } else if arg == "--report-every" {
-                report_every = text
-                    .parse()
-                    .ok()
-                    .filter(|value| *value > 0)
-                    .ok_or_else(|| invalid("--report-every must be positive"))?;
-            } else if arg == "--top-components" {
-                top_components = text
-                    .parse()
-                    .ok()
-                    .filter(|value| *value > 0)
-                    .ok_or_else(|| invalid("--top-components must be positive"))?;
-            } else {
-                dump_top = Some(PathBuf::from(value));
-            }
-        } else if !positional && arg.to_string_lossy().starts_with('-') {
-            return Err(invalid(format!("unknown option {arg:?}")));
-        } else if path.replace(PathBuf::from(arg)).is_some() {
-            return Err(invalid("expected exactly one input file"));
-        }
-    }
-
-    Ok(Some(Args {
-        path: path.ok_or_else(|| invalid("missing input file; use --help"))?,
-        max_states,
-        quotient,
-        limit,
-        max_components,
-        report_every,
-        top_components,
-        dump_top,
-    }))
 }
 
 fn coding_ratio_uniform(bytes: u64, total_nats: f64) -> f64 {
@@ -268,7 +197,7 @@ fn write_top_components(
 fn run(args: &Args) -> io::Result<()> {
     let input = File::open(&args.path)?;
     let mut reader = BufReader::new(input).take(args.limit);
-    let mut posterior = ExactDfaPriorPosterior::with_quotient(args.max_states, args.quotient)
+    let mut posterior = ExactDfaPriorPosterior::with_quotient(args.max_states, DfaQuotient::from(args.quotient))
         .map_err(|error| invalid(error.to_string()))?;
     let mut kt = Kt::default();
 
@@ -282,8 +211,8 @@ fn run(args: &Args) -> io::Result<()> {
     println!(
         "quotient: {}",
         match args.quotient {
-            DfaQuotient::Discovery => "discovery",
-            DfaQuotient::Predictive => "predictive",
+            QuotientArg::Discovery => "discovery",
+            QuotientArg::Predictive => "predictive",
         }
     );
     println!("limit_bytes: {}", args.limit);
@@ -398,13 +327,8 @@ fn run(args: &Args) -> io::Result<()> {
 }
 
 fn main() -> ExitCode {
-    let result = parse(env::args_os().skip(1)).and_then(|args| match args {
-        None => {
-            println!("{HELP}");
-            Ok(())
-        }
-        Some(args) => run(&args),
-    });
+    let args = Args::parse();
+    let result = args.validate().and_then(|()| run(&args));
 
     match result {
         Ok(()) => ExitCode::SUCCESS,
