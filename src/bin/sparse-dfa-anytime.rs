@@ -1,11 +1,7 @@
 use std::{fs, num::NonZeroUsize, path::PathBuf, process::ExitCode, time::Instant};
 
 use clap::Parser;
-use kraft::{
-    baselines::Kt,
-    evaluate,
-    models::sparse_dfa_anytime::SparseDfaAnytime,
-};
+use kraft::{baselines::Kt, evaluate, models::sparse_dfa_anytime::SparseDfaAnytime};
 
 #[derive(Debug, Parser)]
 #[command(about = "Anytime evidence bounds for the full sparse-DFA Bayesian prior")]
@@ -38,9 +34,17 @@ fn code_bounds(search: &SparseDfaAnytime) -> (f64, f64) {
 
 fn report(search: &SparseDfaAnytime, uniform_nats: f64, kt_nats: f64, elapsed: f64) {
     let (lower, upper) = code_bounds(search);
-    let ratio_uniform_lower = if upper.is_infinite() { 0.0 } else { uniform_nats / upper };
+    let ratio_uniform_lower = if upper.is_infinite() {
+        0.0
+    } else {
+        uniform_nats / upper
+    };
     let ratio_uniform_upper = uniform_nats / lower;
-    let ratio_kt_lower = if upper.is_infinite() { 0.0 } else { kt_nats / upper };
+    let ratio_kt_lower = if upper.is_infinite() {
+        0.0
+    } else {
+        kt_nats / upper
+    };
     let ratio_kt_upper = kt_nats / lower;
 
     println!(
@@ -70,16 +74,30 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     println!("input: {:?}", args.path);
     println!("prefix_bytes: {}", data.len());
     println!("target: exact sparse-DFA Bayesian mixture prequential cost");
-    println!("note: this binary certifies joint evidence; it is not yet the finite-compute streaming codec");
+    println!(
+        "note: this binary certifies joint evidence; it is not yet the finite-compute streaming codec"
+    );
     println!();
-    println!("steps\tregions\tresolved_models\tcode_lower_nats\tcode_upper_nats\tratio_uniform_lower\tratio_uniform_upper\tratio_kt_lower\tratio_kt_upper\telapsed_s");
-    report(&search, uniform_nats, kt_nats, started.elapsed().as_secs_f64());
+    println!(
+        "steps\tregions\tresolved_models\tcode_lower_nats\tcode_upper_nats\tratio_uniform_lower\tratio_uniform_upper\tratio_kt_lower\tratio_kt_upper\telapsed_s"
+    );
+    report(
+        &search,
+        uniform_nats,
+        kt_nats,
+        started.elapsed().as_secs_f64(),
+    );
 
     let report_every = args.report_every.get();
     while search.steps() < args.steps {
         let remaining = args.steps - search.steps();
         search.run(&data, remaining.min(report_every));
-        report(&search, uniform_nats, kt_nats, started.elapsed().as_secs_f64());
+        report(
+            &search,
+            uniform_nats,
+            kt_nats,
+            started.elapsed().as_secs_f64(),
+        );
         if remaining < report_every {
             break;
         }
