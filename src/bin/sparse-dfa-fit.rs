@@ -441,8 +441,8 @@ fn search_skeleton(
                     &prefiltered[..promoted_len],
                 )?;
 
-                let audit = args.prefilter_audit_every != 0
-                    && depth % args.prefilter_audit_every == 0;
+                let audit =
+                    args.prefilter_audit_every != 0 && depth % args.prefilter_audit_every == 0;
                 if audit {
                     audit_promoted = Some(
                         prefiltered[..promoted_len]
