@@ -23,6 +23,10 @@ pub struct LogEvidenceBounds {
 }
 
 impl LogEvidenceBounds {
+    pub(crate) fn new_internal(ln_lower: f64, ln_upper: f64) -> Self {
+        Self { ln_lower, ln_upper }
+    }
+
     pub fn exact(ln_mass: f64) -> Self {
         Self {
             ln_lower: ln_mass,
