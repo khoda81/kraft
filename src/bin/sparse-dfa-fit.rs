@@ -155,9 +155,9 @@ impl Args {
     }
 
     fn bundle_path(&self) -> PathBuf {
-        self.dump_bundle.clone().unwrap_or_else(|| {
-            derived_artifact_path(&self.dump_best, "best", "artifacts", "zip")
-        })
+        self.dump_bundle
+            .clone()
+            .unwrap_or_else(|| derived_artifact_path(&self.dump_best, "best", "artifacts", "zip"))
     }
 
     fn validate(&self) -> io::Result<()> {
@@ -714,16 +714,21 @@ fn write_best(path: &PathBuf, candidate: &Candidate) -> io::Result<()> {
 }
 
 
-fn write_run_summary(
-    path: &Path,
-    args: &Args,
+#[derive(Debug, Clone, Copy)]
+struct RunSummaryMetrics {
     data_len: usize,
     search_len: usize,
     screen_len: usize,
     kt_nats: f64,
     uniform_nats: f64,
-    best: &Candidate,
     evaluation_seconds: f64,
+}
+
+fn write_run_summary(
+    path: &Path,
+    args: &Args,
+    best: &Candidate,
+    metrics: RunSummaryMetrics,
 ) -> io::Result<()> {
     if let Some(parent) = path.parent()
         && !parent.as_os_str().is_empty()
@@ -756,9 +761,9 @@ fn write_run_summary(
     output.push_str("# KRAFT sparse DFA run summary\n");
     output.push_str("key\tvalue\n");
     output.push_str(&format!("corpus\t{}\n", args.path.display()));
-    output.push_str(&format!("corpus_bytes\t{data_len}\n"));
-    output.push_str(&format!("search_bytes\t{search_len}\n"));
-    output.push_str(&format!("screen_bytes\t{screen_len}\n"));
+    output.push_str(&format!("corpus_bytes\t{}\n", metrics.data_len));
+    output.push_str(&format!("search_bytes\t{}\n", metrics.search_len));
+    output.push_str(&format!("screen_bytes\t{}\n", metrics.screen_len));
     output.push_str(&format!("prefilter_bytes\t{prefilter_bytes}\n"));
     output.push_str(&format!(
         "prefilter_candidates\t{}\n",
@@ -778,17 +783,14 @@ fn write_run_summary(
         "destinations_per_key\t{}\n",
         args.destinations_per_key
     ));
-    output.push_str(&format!(
-        "screen_candidates\t{}\n",
-        args.screen_candidates
-    ));
+    output.push_str(&format!("screen_candidates\t{}\n", args.screen_candidates));
     output.push_str(&format!("finalists\t{}\n", args.finalists));
     output.push_str(&format!("threads\t{}\n", args.threads()));
     output.push_str(&format!("seed\t{}\n", args.seed));
-    output.push_str(&format!("kt_total_nats\t{kt_nats:.12}\n"));
+    output.push_str(&format!("kt_total_nats\t{:.12}\n", metrics.kt_nats));
     output.push_str(&format!(
         "kt_coding_ratio_uniform\t{:.12}\n",
-        uniform_nats / kt_nats
+        metrics.uniform_nats / metrics.kt_nats
     ));
     output.push_str(&format!("best_states\t{}\n", best.model.states()));
     output.push_str(&format!(
@@ -806,13 +808,16 @@ fn write_run_summary(
     ));
     output.push_str(&format!(
         "best_certified_coding_ratio_uniform_lower\t{:.12}\n",
-        uniform_nats / joint_nats
+        metrics.uniform_nats / joint_nats
     ));
     output.push_str(&format!(
         "best_certified_coding_ratio_kt_lower\t{:.12}\n",
-        kt_nats / joint_nats
+        metrics.kt_nats / joint_nats
     ));
-    output.push_str(&format!("evaluation_seconds\t{evaluation_seconds:.6}\n"));
+    output.push_str(&format!(
+        "evaluation_seconds\t{:.6}\n",
+        metrics.evaluation_seconds
+    ));
     fs::write(path, output)
 }
 
@@ -825,9 +830,7 @@ fn run_zip_command(output: &Path, inputs: &[&Path]) -> io::Result<()> {
 
     match command.status() {
         Ok(status) if status.success() => Ok(()),
-        Ok(status) => Err(io::Error::other(format!(
-            "zip exited with status {status}"
-        ))),
+        Ok(status) => Err(io::Error::other(format!("zip exited with status {status}"))),
         Err(error) => Err(error),
     }
 }
@@ -1131,13 +1134,15 @@ fn run(args: &Args) -> io::Result<()> {
     write_run_summary(
         &summary_path,
         args,
-        data.len(),
-        search_len,
-        screen_len,
-        kt_nats,
-        uniform_nats,
         best,
-        evaluation_seconds,
+        RunSummaryMetrics {
+            data_len: data.len(),
+            search_len,
+            screen_len,
+            kt_nats,
+            uniform_nats,
+            evaluation_seconds,
+        },
     )?;
 
     let bundle_path = args.bundle_path();
@@ -1156,9 +1161,9 @@ fn run(args: &Args) -> io::Result<()> {
     println!("summary_dump: {:?}", summary_path);
     match &bundle_result {
         Ok(()) => println!("artifact_bundle: {:?}", bundle_path),
-        Err(error) => eprintln!(
-            "[sparse-dfa-fit] warning: artifact bundle was not created: {error}"
-        ),
+        Err(error) => {
+            eprintln!("[sparse-dfa-fit] warning: artifact bundle was not created: {error}")
+        }
     }
     println!("best_states: {}", best.model.states());
     println!("best_topology: {}", best.model.topology().as_str());
