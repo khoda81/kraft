@@ -13,8 +13,8 @@ use std::{
     collections::HashSet,
     fs::{self, OpenOptions},
     io::{self, Write},
-    path::PathBuf,
-    process::ExitCode,
+    path::{Path, PathBuf},
+    process::{Command, ExitCode},
     thread,
     time::Instant,
 };
@@ -137,12 +137,27 @@ struct Args {
     /// Durably append machine-readable search checkpoints here as work completes.
     #[arg(long, default_value = "artifacts/sparse-dfa-progress.tsv")]
     dump_progress: PathBuf,
+
+    /// ZIP bundle containing the summary, best model, finalists, and progress.
+    /// When omitted, derive a sibling name from --dump-best.
+    #[arg(long)]
+    dump_bundle: Option<PathBuf>,
 }
 
 impl Args {
     fn threads(&self) -> usize {
         self.threads
             .unwrap_or_else(|| thread::available_parallelism().map_or(1, usize::from))
+    }
+
+    fn summary_path(&self) -> PathBuf {
+        derived_artifact_path(&self.dump_best, "best", "summary", "tsv")
+    }
+
+    fn bundle_path(&self) -> PathBuf {
+        self.dump_bundle.clone().unwrap_or_else(|| {
+            derived_artifact_path(&self.dump_best, "best", "artifacts", "zip")
+        })
     }
 
     fn validate(&self) -> io::Result<()> {
@@ -184,6 +199,21 @@ impl Args {
 
 fn invalid(message: impl Into<String>) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message.into())
+}
+
+fn derived_artifact_path(path: &Path, from_role: &str, to_role: &str, extension: &str) -> PathBuf {
+    let stem = path
+        .file_stem()
+        .and_then(|value| value.to_str())
+        .unwrap_or("sparse-dfa");
+    let needle = format!("-{from_role}");
+    let replacement = format!("-{to_role}");
+    let output_stem = if stem.contains(&needle) {
+        stem.replacen(&needle, &replacement, 1)
+    } else {
+        format!("{stem}-{to_role}")
+    };
+    path.with_file_name(format!("{output_stem}.{extension}"))
 }
 
 #[derive(Debug, Clone)]
@@ -683,6 +713,183 @@ fn write_best(path: &PathBuf, candidate: &Candidate) -> io::Result<()> {
     fs::write(path, output)
 }
 
+
+fn write_run_summary(
+    path: &Path,
+    args: &Args,
+    data_len: usize,
+    search_len: usize,
+    screen_len: usize,
+    kt_nats: f64,
+    uniform_nats: f64,
+    best: &Candidate,
+    evaluation_seconds: f64,
+) -> io::Result<()> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+
+    let states = args
+        .states
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let topologies = args
+        .topologies
+        .iter()
+        .copied()
+        .map(DefaultTopology::from)
+        .map(|topology| topology.as_str())
+        .collect::<Vec<_>>()
+        .join(",");
+    let prefilter_bytes = args
+        .prefilter_bytes
+        .map_or_else(|| "disabled".to_owned(), |value| value.to_string());
+
+    let data_nats = -best.ln_evidence;
+    let joint_nats = -best.ln_joint();
+
+    let mut output = String::new();
+    output.push_str("# KRAFT sparse DFA run summary\n");
+    output.push_str("key\tvalue\n");
+    output.push_str(&format!("corpus\t{}\n", args.path.display()));
+    output.push_str(&format!("corpus_bytes\t{data_len}\n"));
+    output.push_str(&format!("search_bytes\t{search_len}\n"));
+    output.push_str(&format!("screen_bytes\t{screen_len}\n"));
+    output.push_str(&format!("prefilter_bytes\t{prefilter_bytes}\n"));
+    output.push_str(&format!(
+        "prefilter_candidates\t{}\n",
+        args.prefilter_candidates
+    ));
+    output.push_str(&format!(
+        "prefilter_audit_every\t{}\n",
+        args.prefilter_audit_every
+    ));
+    output.push_str(&format!("states\t{states}\n"));
+    output.push_str(&format!("topologies\t{topologies}\n"));
+    output.push_str(&format!("max_exceptions\t{}\n", args.max_exceptions));
+    output.push_str(&format!("skeletons\t{}\n", args.skeletons));
+    output.push_str(&format!("beam\t{}\n", args.beam));
+    output.push_str(&format!("keys_per_parent\t{}\n", args.keys_per_parent));
+    output.push_str(&format!(
+        "destinations_per_key\t{}\n",
+        args.destinations_per_key
+    ));
+    output.push_str(&format!(
+        "screen_candidates\t{}\n",
+        args.screen_candidates
+    ));
+    output.push_str(&format!("finalists\t{}\n", args.finalists));
+    output.push_str(&format!("threads\t{}\n", args.threads()));
+    output.push_str(&format!("seed\t{}\n", args.seed));
+    output.push_str(&format!("kt_total_nats\t{kt_nats:.12}\n"));
+    output.push_str(&format!(
+        "kt_coding_ratio_uniform\t{:.12}\n",
+        uniform_nats / kt_nats
+    ));
+    output.push_str(&format!("best_states\t{}\n", best.model.states()));
+    output.push_str(&format!(
+        "best_topology\t{}\n",
+        best.model.topology().as_str()
+    ));
+    output.push_str(&format!("best_exceptions\t{}\n", best.exceptions()));
+    output.push_str(&format!(
+        "best_prior_bits\t{:.12}\n",
+        best.model.prior_bits()
+    ));
+    output.push_str(&format!("best_total_nats\t{data_nats:.12}\n"));
+    output.push_str(&format!(
+        "best_certified_mixture_upper_nats\t{joint_nats:.12}\n"
+    ));
+    output.push_str(&format!(
+        "best_certified_coding_ratio_uniform_lower\t{:.12}\n",
+        uniform_nats / joint_nats
+    ));
+    output.push_str(&format!(
+        "best_certified_coding_ratio_kt_lower\t{:.12}\n",
+        kt_nats / joint_nats
+    ));
+    output.push_str(&format!("evaluation_seconds\t{evaluation_seconds:.6}\n"));
+    fs::write(path, output)
+}
+
+fn run_zip_command(output: &Path, inputs: &[&Path]) -> io::Result<()> {
+    let mut command = Command::new("zip");
+    command.arg("-9").arg("-j").arg("-q").arg(output).arg("--");
+    for input in inputs {
+        command.arg(input);
+    }
+
+    match command.status() {
+        Ok(status) if status.success() => Ok(()),
+        Ok(status) => Err(io::Error::other(format!(
+            "zip exited with status {status}"
+        ))),
+        Err(error) => Err(error),
+    }
+}
+
+fn run_python_zip(output: &Path, inputs: &[&Path]) -> io::Result<()> {
+    const SCRIPT: &str = r#"
+import os
+import sys
+import zipfile
+
+output, *inputs = sys.argv[1:]
+with zipfile.ZipFile(
+    output,
+    "w",
+    compression=zipfile.ZIP_DEFLATED,
+    compresslevel=9,
+) as archive:
+    for path in inputs:
+        archive.write(path, arcname=os.path.basename(path))
+"#;
+
+    let mut command = Command::new("python3");
+    command.arg("-c").arg(SCRIPT).arg(output);
+    for input in inputs {
+        command.arg(input);
+    }
+
+    match command.status() {
+        Ok(status) if status.success() => Ok(()),
+        Ok(status) => Err(io::Error::other(format!(
+            "python3 ZIP fallback exited with status {status}"
+        ))),
+        Err(error) => Err(error),
+    }
+}
+
+fn write_artifact_bundle(output: &Path, inputs: &[&Path]) -> io::Result<()> {
+    if let Some(parent) = output.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)?;
+    }
+    if output.exists() {
+        fs::remove_file(output)?;
+    }
+
+    match run_zip_command(output, inputs) {
+        Ok(()) => Ok(()),
+        Err(zip_error) => {
+            if output.exists() {
+                fs::remove_file(output)?;
+            }
+            match run_python_zip(output, inputs) {
+                Ok(()) => Ok(()),
+                Err(python_error) => Err(io::Error::other(format!(
+                    "could not create ZIP bundle: zip: {zip_error}; python3 fallback: {python_error}"
+                ))),
+            }
+        }
+    }
+}
+
 fn format_overrides(candidate: &Candidate) -> String {
     candidate
         .model
@@ -918,10 +1125,41 @@ fn run(args: &Args) -> io::Result<()> {
     let best = &finalists[0];
     write_best(&args.dump_best, best)?;
     write_finalists(&args.dump_finalists, &finalists)?;
+
+    let evaluation_seconds = started.elapsed().as_secs_f64();
+    let summary_path = args.summary_path();
+    write_run_summary(
+        &summary_path,
+        args,
+        data.len(),
+        search_len,
+        screen_len,
+        kt_nats,
+        uniform_nats,
+        best,
+        evaluation_seconds,
+    )?;
+
+    let bundle_path = args.bundle_path();
+    let bundle_inputs = [
+        summary_path.as_path(),
+        args.dump_best.as_path(),
+        args.dump_finalists.as_path(),
+        args.dump_progress.as_path(),
+    ];
+    let bundle_result = write_artifact_bundle(&bundle_path, &bundle_inputs);
+
     println!();
     println!("best_model_dump: {:?}", args.dump_best);
     println!("finalists_dump: {:?}", args.dump_finalists);
     println!("progress_dump: {:?}", args.dump_progress);
+    println!("summary_dump: {:?}", summary_path);
+    match &bundle_result {
+        Ok(()) => println!("artifact_bundle: {:?}", bundle_path),
+        Err(error) => eprintln!(
+            "[sparse-dfa-fit] warning: artifact bundle was not created: {error}"
+        ),
+    }
     println!("best_states: {}", best.model.states());
     println!("best_topology: {}", best.model.topology().as_str());
     println!("best_exceptions: {}", best.exceptions());
@@ -939,7 +1177,7 @@ fn run(args: &Args) -> io::Result<()> {
         "best_certified_coding_ratio_kt_lower: {:.12}",
         kt_nats / -best.ln_joint()
     );
-    println!("evaluation_seconds: {:.6}", started.elapsed().as_secs_f64());
+    println!("evaluation_seconds: {evaluation_seconds:.6}");
 
     Ok(())
 }
