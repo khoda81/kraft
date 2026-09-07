@@ -33,10 +33,6 @@ impl StateCountTail {
         Self(PositiveNat::one())
     }
 
-    pub fn from_min(min: StateCount) -> Self {
-        Self(min.0)
-    }
-
     pub fn split(&self) -> (StateCount, Self) {
         (StateCount(self.0.clone()), Self(self.0.successor()))
     }
