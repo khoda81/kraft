@@ -131,7 +131,7 @@ enum SparseRegion {
     States(StateCount),
     Topology(TopologyChoice),
     ExceptionTail(ExceptionCountTail),
-    Exceptions(ExceptionCount),
+    Opaque(ExceptionCount),
     Keys(KeySetRegion),
     Destinations(DestinationRegion),
     Concrete(SparseDfa),
@@ -144,7 +144,7 @@ impl PriorRegion for SparseRegion {
             Self::States(region) => region.ln_prior_mass(),
             Self::Topology(region) => region.ln_prior_mass(),
             Self::ExceptionTail(region) => region.ln_prior_mass(),
-            Self::Exceptions(region) => region.ln_prior_mass(),
+            Self::Opaque(region) => region.ln_prior_mass(),
             Self::Keys(region) => region.ln_prior_mass,
             Self::Destinations(region) => region.ln_prior_mass,
             Self::Concrete(model) => model.ln_prior(),
@@ -154,15 +154,11 @@ impl PriorRegion for SparseRegion {
 
 impl SparseRegion {
     fn refinable(&self) -> bool {
-        match self {
-            Self::Concrete(_) => false,
-            Self::Exceptions(count) => KeySetRegion::new(count).is_some(),
-            _ => true,
-        }
+        !matches!(self, Self::Concrete(_) | Self::Opaque(_))
     }
 
-    fn refine(self) -> Option<Vec<Self>> {
-        Some(match self {
+    fn refine(self) -> Vec<Self> {
+        match self {
             Self::StatesTail(region) => {
                 let (exact, tail) = region.split();
                 vec![Self::States(exact), Self::StatesTail(tail)]
@@ -171,15 +167,15 @@ impl SparseRegion {
             Self::Topology(region) => vec![Self::ExceptionTail(region.exception_counts())],
             Self::ExceptionTail(region) => {
                 let (exact, tail) = region.split();
-                let mut children = vec![Self::Exceptions(exact)];
+                let exact = KeySetRegion::new(&exact).map_or(Self::Opaque(exact), Self::Keys);
+                let mut children = vec![exact];
                 children.extend(tail.map(Self::ExceptionTail));
                 children
             }
-            Self::Exceptions(region) => vec![Self::Keys(KeySetRegion::new(&region)?)],
             Self::Keys(region) => region.refine(),
             Self::Destinations(region) => region.refine(),
-            Self::Concrete(_) => return None,
-        })
+            Self::Concrete(_) | Self::Opaque(_) => Vec::new(),
+        }
     }
 }
 
@@ -218,7 +214,7 @@ impl SparseDfaAnytime {
         };
 
         let parent = self.frontier.swap_remove(index);
-        self.frontier.extend(parent.region.refine().unwrap().into_iter().map(|region| node(region, data)));
+        self.frontier.extend(parent.region.refine().into_iter().map(|region| node(region, data)));
         self.steps += 1;
         true
     }
