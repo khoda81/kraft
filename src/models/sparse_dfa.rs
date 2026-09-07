@@ -268,13 +268,14 @@ impl SparseDfa {
             state = transitions[key];
         }
 
-        let state_totals = visited_keys
-            .chunks_exact(ALPHABET)
+        let state_counts = visited_keys.as_chunks::<ALPHABET>().0;
+        let state_totals = state_counts
+            .iter()
             .map(|state_counts| state_counts.iter().sum())
             .collect::<Vec<u64>>();
 
-        let ln_evidence = visited_keys
-            .chunks_exact(ALPHABET)
+        let ln_evidence = state_counts
+            .iter()
             .zip(&state_totals)
             .filter(|(_, total)| **total != 0)
             .map(|(state_counts, total)| state_ln_evidence(state_counts, *total))
@@ -451,7 +452,9 @@ mod tests {
             state = model.destination(state, byte);
         }
         let ln_evidence = visited_keys
-            .chunks_exact(ALPHABET)
+            .as_chunks::<ALPHABET>()
+            .0
+            .iter()
             .zip(&state_totals)
             .filter(|(_, total)| **total != 0)
             .map(|(counts, total)| state_ln_evidence(counts, *total))
