@@ -16,7 +16,7 @@ impl PositiveNat {
     }
 
     pub fn predecessor(&self) -> Option<Self> {
-        (self.0 != BigUint::from(1_u8)).then(|| Self(&self.0 - 1_u8))
+        (self.0.bits() != 1).then(|| Self(&self.0 - 1_u8))
     }
 
     pub fn shifted(&self, bits: usize) -> Self {
