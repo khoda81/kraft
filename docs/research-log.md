@@ -105,3 +105,13 @@
 This entry is reconstructed from conversation context, not a contemporaneous experiment record.
 
 The discussion explored Bayesian mixtures over programs, allocating compute according to description length and predictive evidence, and a computation-power ladder from finite-state objects toward richer machines. It identified that changing log base consistently does not add a free parameter when the score is literally Bayesian weight divided by compute. KRAFT and Rust/CPU-first were selected. No measurements or implementation are attributed to this discussion.
+
+## 2026-09-07 — Prequential objective cleanup and anytime rewrite bootstrap
+
+- Made causal Bayesian-mixture prequential coding the canonical KRAFT score in `docs/prequential.md`.
+- Clarified that fixed structures selected using the complete evaluation corpus are hindsight/oracle diagnostics; candidate data cost plus negative log prior is a valid single-model upper bound on mixture cost, not the measured KRAFT code.
+- Rewrote architecture/status/queue around prior-mass-preserving anytime inference: structural model choices stay inside the prior; compute only controls refinement and precision.
+- Recorded the audited `N=8`, `next`, `K<=256` sparse-DFA run as E0e. The best candidate again hit the complexity ceiling and the `K=255 -> 256` step still improved the joint bound, motivating removal of semantic cutoffs.
+- Added `SparseDfaLearner`, a literal online `predict -> score -> observe` implementation, and a regression test requiring the optimized integrated-evidence scorer to match it for prespecified DFAs.
+- Renamed sparse search outputs to explicitly identify hindsight/oracle data costs and single-model mixture bounds.
+- Added the first generic anytime primitives: prior regions, log evidence bounds, frontier nodes, and `Partition` / `Tighten` / `Resolve` refinements. No scheduler is part of these semantics.
