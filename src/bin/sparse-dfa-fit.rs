@@ -76,6 +76,15 @@ struct Args {
     #[arg(long, default_value_t = 100_000)]
     search_bytes: usize,
 
+    /// Optional cheap prefix used to prefilter every depth's proposals before
+    /// exact scoring on --search-bytes. Disabled when omitted.
+    #[arg(long)]
+    prefilter_bytes: Option<usize>,
+
+    /// Number of proposal candidates promoted from the cheap prefilter.
+    #[arg(long, default_value_t = 96)]
+    prefilter_candidates: usize,
+
     /// Prefix used to screen searched candidates.
     #[arg(long, default_value_t = 5_000_000)]
     screen_bytes: usize,
@@ -138,6 +147,7 @@ impl Args {
         for (name, value) in [
             ("--search-bytes", self.search_bytes),
             ("--screen-bytes", self.screen_bytes),
+            ("--prefilter-candidates", self.prefilter_candidates),
             ("--skeletons", self.skeletons),
             ("--beam", self.beam),
             ("--keys-per-parent", self.keys_per_parent),
@@ -151,6 +161,12 @@ impl Args {
         }
         if self.threads == Some(0) {
             return Err(invalid("--threads must be positive"));
+        }
+        if self.prefilter_bytes == Some(0) {
+            return Err(invalid("--prefilter-bytes must be positive"));
+        }
+        if self.prefilter_candidates < self.beam {
+            return Err(invalid("--prefilter-candidates cannot be smaller than --beam"));
         }
         if self.finalists > self.screen_candidates {
             return Err(invalid("--finalists cannot exceed --screen-candidates"));
@@ -391,7 +407,38 @@ fn search_skeleton(
             proposals.len()
         );
 
-        let proposal_models = proposals.into_iter().collect::<Vec<_>>();
+        let mut proposal_models = proposals.into_iter().collect::<Vec<_>>();
+        let proposed_total = proposal_models.len();
+
+        if let Some(prefilter_bytes) = args.prefilter_bytes {
+            let prefilter_len = prefilter_bytes.min(data.len());
+            if prefilter_len < data.len() && proposal_models.len() > args.prefilter_candidates {
+                eprintln!(
+                    "[sparse-dfa-fit] skeleton={} depth={} prefiltering {} proposals on {} bytes -> {}",
+                    skeleton_index,
+                    depth,
+                    proposal_models.len(),
+                    prefilter_len,
+                    args.prefilter_candidates,
+                );
+                let mut prefiltered =
+                    score_models(proposal_models, &data[..prefilter_len], args.threads());
+                sort_best(&mut prefiltered);
+                prefiltered.truncate(args.prefilter_candidates);
+                progress.append_candidates(
+                    "prefilter",
+                    Some(skeleton_index + 1),
+                    Some(depth),
+                    prefilter_len,
+                    &prefiltered,
+                )?;
+                proposal_models = prefiltered
+                    .into_iter()
+                    .map(|candidate| candidate.model)
+                    .collect();
+            }
+        }
+
         let total = proposal_models.len();
         let batch_size = (args.threads() * 4).max(32).min(total);
         let mut scored = Vec::with_capacity(total);
@@ -399,11 +446,12 @@ fn search_skeleton(
             scored.extend(score_models(batch.to_vec(), data, args.threads()));
             sort_best(&mut scored);
             eprintln!(
-                "[sparse-dfa-fit] skeleton={} depth={} scored={}/{} batches={}/{}",
+                "[sparse-dfa-fit] skeleton={} depth={} full-scored={}/{} promoted ({} proposed) batches={}/{}",
                 skeleton_index,
                 depth,
                 scored.len(),
                 total,
+                proposed_total,
                 batch_index + 1,
                 total.div_ceil(batch_size),
             );
@@ -496,6 +544,15 @@ impl ProgressWriter {
         output.push_str(&format!("# screen_bytes={screen_len}\n"));
         output.push_str(&format!("# max_exceptions={}\n", args.max_exceptions));
         output.push_str(&format!("# beam={}\n", args.beam));
+        output.push_str(&format!(
+            "# prefilter_bytes={}\n",
+            args.prefilter_bytes
+                .map_or_else(|| "disabled".to_owned(), |value| value.to_string())
+        ));
+        output.push_str(&format!(
+            "# prefilter_candidates={}\n",
+            args.prefilter_candidates
+        ));
         output.push_str(
             "stage\tskeleton\tdepth\trank\tscore_bytes\tstates\ttopology\texceptions\tprior_bits\tln_evidence\tln_joint\toverrides\n",
         );
@@ -650,9 +707,11 @@ fn run(args: &Args) -> io::Result<()> {
     progress.reset(args, data.len(), search_len, screen_len)?;
 
     eprintln!(
-        "[sparse-dfa-fit] loaded {} bytes; search={} screen={} states={:?}",
+        "[sparse-dfa-fit] loaded {} bytes; search={} prefilter={:?}->{} screen={} states={:?}",
         data.len(),
         search_len,
+        args.prefilter_bytes,
+        args.prefilter_candidates,
         screen_len,
         args.states
     );
@@ -671,6 +730,12 @@ fn run(args: &Args) -> io::Result<()> {
 
     println!("search_bytes: {search_len}");
     println!("screen_bytes: {screen_len}");
+    println!(
+        "prefilter_bytes: {}",
+        args.prefilter_bytes
+            .map_or_else(|| "disabled".to_owned(), |value| value.to_string())
+    );
+    println!("prefilter_candidates: {}", args.prefilter_candidates);
     println!("skeleton_candidates: {}", skeleton_scores.len());
     println!();
     println!("skeleton_rank\tN\ttopology\tdata_nats\tprior_bits\tjoint_nats");
