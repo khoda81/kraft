@@ -27,6 +27,11 @@ impl PositiveNat {
         Self(&self.0 << bits)
     }
 
+    pub fn to_u64(&self) -> Option<u64> {
+        let digits = self.0.to_u64_digits();
+        (digits.len() == 1).then_some(digits[0])
+    }
+
     pub fn ln(&self) -> f64 {
         let bits = self.0.bits();
         if bits <= 53 {
