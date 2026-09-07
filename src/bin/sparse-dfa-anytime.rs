@@ -68,7 +68,7 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     let uniform_nats = data.len() as f64 * 8.0 * std::f64::consts::LN_2;
     let kt_nats = evaluate(&data[..], &mut Kt::default())?.total_nats;
-    let mut search = SparseDfaAnytime::new();
+    let mut search = SparseDfaAnytime::new(&data);
     let started = Instant::now();
 
     println!("input: {:?}", args.path);
@@ -91,7 +91,7 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let report_every = args.report_every.get();
     while search.steps() < args.steps {
         let remaining = args.steps - search.steps();
-        search.run(&data, remaining.min(report_every));
+        search.run(remaining.min(report_every));
         report(
             &search,
             uniform_nats,
