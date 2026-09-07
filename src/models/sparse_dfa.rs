@@ -23,6 +23,8 @@
 
 use std::{error::Error, fmt};
 
+use crate::{Distribution, Model};
+
 const ALPHABET: usize = 256;
 const JEFFREYS_ALPHA: f64 = 0.5;
 const JEFFREYS_TOTAL: f64 = 128.0;
@@ -233,12 +235,24 @@ impl SparseDfa {
         -self.ln_prior() / std::f64::consts::LN_2
     }
 
-    /// Exact integrated Dirichlet-1/2 evidence of a byte sequence.
+    /// Exact integrated Dirichlet-1/2 evidence of a byte sequence for this
+    /// prespecified transition structure.
+    ///
+    /// By Dirichlet conjugacy this equals the product of the literal causal
+    /// `predict -> score -> observe` probabilities from `SparseDfaLearner`.
+    /// If the DFA itself was selected using `data`, this remains a hindsight
+    /// fixed-structure diagnostic rather than the online score of that search.
     pub fn ln_evidence(&self, data: &[u8]) -> f64 {
         self.score(data).ln_evidence
     }
 
     /// Score plus trajectory statistics useful to sparse-structure search.
+    ///
+    /// This is a batch sufficient-statistic shortcut for a *fixed* DFA. The
+    /// trajectory is causal (the current state predicts the byte, then the
+    /// observed byte selects the next state), and the integrated Dirichlet
+    /// evidence is exactly equal to sequential prequential scoring. Regression
+    /// tests compare this path against `SparseDfaLearner`.
     ///
     /// Scoring is the hot loop of the heuristic search, so compile the sparse
     /// transition program into a dense lookup table once per candidate. The
@@ -290,6 +304,75 @@ impl SparseDfa {
     }
 }
 
+/// Literal online Bayesian learner for a prespecified sparse DFA.
+///
+/// Each state owns an independent Dirichlet-1/2 byte predictor. `predict` uses
+/// the current state and counts from the observed prefix only. `observe` then
+/// updates that state's counts and transitions using the revealed byte.
+#[derive(Debug, Clone)]
+pub struct SparseDfaLearner {
+    model: SparseDfa,
+    state: u16,
+    counts: Vec<u64>,
+    totals: Vec<u64>,
+}
+
+impl SparseDfaLearner {
+    pub fn new(model: SparseDfa) -> Self {
+        let states = usize::from(model.states());
+        Self {
+            model,
+            state: 0,
+            counts: vec![0; states * ALPHABET],
+            totals: vec![0; states],
+        }
+    }
+
+    pub fn model(&self) -> &SparseDfa {
+        &self.model
+    }
+
+    pub fn state(&self) -> u16 {
+        self.state
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SparseDfaPrediction<'a> {
+    counts: &'a [u64],
+    total: u64,
+}
+
+impl Distribution<u8> for SparseDfaPrediction<'_> {
+    fn ln_prob(&self, byte: &u8) -> f64 {
+        ((self.counts[usize::from(*byte)] as f64 + JEFFREYS_ALPHA)
+            / (self.total as f64 + JEFFREYS_TOTAL))
+            .ln()
+    }
+}
+
+impl Model<u8> for SparseDfaLearner {
+    fn predict(&self) -> impl Distribution<u8> {
+        let state = usize::from(self.state);
+        let start = state * ALPHABET;
+        SparseDfaPrediction {
+            counts: &self.counts[start..start + ALPHABET],
+            total: self.totals[state],
+        }
+    }
+
+    fn observe(&mut self, byte: u8) {
+        let state = usize::from(self.state);
+        let key = state * ALPHABET + usize::from(byte);
+        self.counts[key] = self.counts[key]
+            .checked_add(1)
+            .expect("sparse DFA state/byte count overflow");
+        self.totals[state] = self.totals[state]
+            .checked_add(1)
+            .expect("sparse DFA state total overflow");
+        self.state = self.model.destination(self.state, byte);
+    }
+}
 #[derive(Debug, Clone)]
 pub struct SparseDfaScore {
     pub ln_evidence: f64,
@@ -414,6 +497,46 @@ mod tests {
         assert_eq!(dfa.destination(1, b'q'), 1);
     }
 
+    #[test]
+    fn batch_evidence_matches_literal_prequential_evaluation() {
+        let data = b"abracadabra abracadabra\n<xml>abba</xml>";
+        for topology in DefaultTopology::ALL {
+            let first_destination = if topology.default_destination(0, 5) == 3 {
+                2
+            } else {
+                3
+            };
+            let second_destination = if topology.default_destination(3, 5) == 1 {
+                2
+            } else {
+                1
+            };
+            let model = SparseDfa::new(
+                5,
+                topology,
+                vec![
+                    SparseOverride {
+                        source: 0,
+                        byte: b'a',
+                        destination: first_destination,
+                    },
+                    SparseOverride {
+                        source: 3,
+                        byte: b'b',
+                        destination: second_destination,
+                    },
+                ],
+            )
+            .unwrap();
+
+            let mut learner = SparseDfaLearner::new(model.clone());
+            let evaluation = crate::evaluate(&data[..], &mut learner).unwrap();
+            let batch_cost = -model.ln_evidence(data);
+
+            assert!((evaluation.total_nats - batch_cost).abs() < 1e-10);
+            assert_eq!(learner.state(), model.score(data).final_state);
+        }
+    }
     #[test]
     fn optimized_score_matches_sparse_lookup_reference() {
         let model = SparseDfa::new(
