@@ -85,6 +85,11 @@ struct Args {
     #[arg(long, default_value_t = 96)]
     prefilter_candidates: usize,
 
+    /// Every Nth exception depth, full-score all proposals and report how many
+    /// of the true top-beam candidates survived the cheap prefilter. Zero disables.
+    #[arg(long, default_value_t = 0)]
+    prefilter_audit_every: usize,
+
     /// Prefix used to screen searched candidates.
     #[arg(long, default_value_t = 5_000_000)]
     screen_bytes: usize,
@@ -411,6 +416,7 @@ fn search_skeleton(
 
         let mut proposal_models = proposals.into_iter().collect::<Vec<_>>();
         let proposed_total = proposal_models.len();
+        let mut audit_promoted: Option<HashSet<SparseDfa>> = None;
 
         if let Some(prefilter_bytes) = args.prefilter_bytes {
             let prefilter_len = prefilter_bytes.min(data.len());
@@ -426,18 +432,41 @@ fn search_skeleton(
                 let mut prefiltered =
                     score_models(proposal_models, &data[..prefilter_len], args.threads());
                 sort_best(&mut prefiltered);
-                prefiltered.truncate(args.prefilter_candidates);
+                let promoted_len = args.prefilter_candidates.min(prefiltered.len());
                 progress.append_candidates(
                     "prefilter",
                     Some(skeleton_index + 1),
                     Some(depth),
                     prefilter_len,
-                    &prefiltered,
+                    &prefiltered[..promoted_len],
                 )?;
-                proposal_models = prefiltered
-                    .into_iter()
-                    .map(|candidate| candidate.model)
-                    .collect();
+
+                let audit = args.prefilter_audit_every != 0
+                    && depth % args.prefilter_audit_every == 0;
+                if audit {
+                    audit_promoted = Some(
+                        prefiltered[..promoted_len]
+                            .iter()
+                            .map(|candidate| candidate.model.clone())
+                            .collect(),
+                    );
+                    proposal_models = prefiltered
+                        .into_iter()
+                        .map(|candidate| candidate.model)
+                        .collect();
+                    eprintln!(
+                        "[sparse-dfa-fit] skeleton={} depth={} prefilter audit: full-scoring all {} proposals",
+                        skeleton_index,
+                        depth,
+                        proposal_models.len(),
+                    );
+                } else {
+                    proposal_models = prefiltered
+                        .into_iter()
+                        .take(promoted_len)
+                        .map(|candidate| candidate.model)
+                        .collect();
+                }
             }
         }
 
@@ -465,6 +494,29 @@ fn search_skeleton(
                 &scored[..1],
             )?;
         }
+        if let Some(promoted) = audit_promoted {
+            let truth_len = args.beam.min(scored.len());
+            let hits = scored[..truth_len]
+                .iter()
+                .filter(|candidate| promoted.contains(&candidate.model))
+                .count();
+            eprintln!(
+                "[sparse-dfa-fit] skeleton={} depth={} prefilter audit recall={}/{} ({:.1}%)",
+                skeleton_index,
+                depth,
+                hits,
+                truth_len,
+                100.0 * hits as f64 / truth_len as f64,
+            );
+            progress.append_candidates(
+                "prefilter_audit_truth",
+                Some(skeleton_index + 1),
+                Some(depth),
+                data.len(),
+                &scored[..truth_len],
+            )?;
+        }
+
         scored.truncate(args.beam);
         if scored.is_empty() {
             break;
@@ -554,6 +606,10 @@ impl ProgressWriter {
         output.push_str(&format!(
             "# prefilter_candidates={}\n",
             args.prefilter_candidates
+        ));
+        output.push_str(&format!(
+            "# prefilter_audit_every={}\n",
+            args.prefilter_audit_every
         ));
         output.push_str(
             "stage\tskeleton\tdepth\trank\tscore_bytes\tstates\ttopology\texceptions\tprior_bits\tln_evidence\tln_joint\toverrides\n",
@@ -738,6 +794,7 @@ fn run(args: &Args) -> io::Result<()> {
             .map_or_else(|| "disabled".to_owned(), |value| value.to_string())
     );
     println!("prefilter_candidates: {}", args.prefilter_candidates);
+    println!("prefilter_audit_every: {}", args.prefilter_audit_every);
     println!("skeleton_candidates: {}", skeleton_scores.len());
     println!();
     println!("skeleton_rank\tN\ttopology\tdata_nats\tprior_bits\tjoint_nats");
