@@ -469,23 +469,20 @@ mod tests {
     }
 
     fn exact_region_mass(region: &KeySetRegion, data: &[u8]) -> f64 {
-        (region.next..region.next + region.remaining).fold(
-            f64::NEG_INFINITY,
-            |mass, key| {
-                let source = (key >> 8) as u16;
-                let byte = key as u8;
-                let model = SparseDfa::from_valid_parts(
-                    2,
-                    DefaultTopology::Stay,
-                    vec![SparseOverride {
-                        source,
-                        byte,
-                        destination: 1 - source,
-                    }],
-                );
-                log_add_exp(mass, model.ln_prior() + model.ln_evidence(data))
-            },
-        )
+        (region.next..region.next + region.remaining).fold(f64::NEG_INFINITY, |mass, key| {
+            let source = (key >> 8) as u16;
+            let byte = key as u8;
+            let model = SparseDfa::from_valid_parts(
+                2,
+                DefaultTopology::Stay,
+                vec![SparseOverride {
+                    source,
+                    byte,
+                    destination: 1 - source,
+                }],
+            );
+            log_add_exp(mass, model.ln_prior() + model.ln_evidence(data))
+        })
     }
 
     #[test]
