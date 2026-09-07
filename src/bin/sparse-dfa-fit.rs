@@ -1,7 +1,9 @@
-//! Heuristic search in the proper sparse-default DFA prior.
+//! Hindsight/oracle heuristic search in the proper sparse-default DFA prior.
 //!
-//! The prior itself is exact and proper; this binary searches for high-joint-mass
-//! descriptions. Every returned candidate h certifies
+//! This binary uses the scoring corpus to choose structures, so a candidate's
+//! fixed-DFA evidence is an oracle diagnostic, not KRAFT's online prequential
+//! coding cost. The prior itself is exact and proper; every returned candidate h
+//! still certifies
 //!
 //! ```text
 //! C_sparse_mixture(x) <= C_h(x) - ln P(h).
@@ -44,7 +46,7 @@ impl From<TopologyArg> for DefaultTopology {
 #[derive(Debug, Clone, Parser)]
 #[command(
     about = "Search sparse recurrent DFAs under a proper Bayesian description prior",
-    long_about = "Heuristic MAP search over sparse recurrent byte-input DFAs. Each state follows a cheap implicit stay/next/cycle topology by default, with a sparse set of byte-specific transition overrides. The model prior is proper; every returned candidate gives a rigorous upper bound on the full Bayesian mixture coding cost."
+    long_about = "Hindsight/oracle heuristic search over sparse recurrent byte-input DFAs. The scoring corpus is used to choose the structure, so candidate data cost is not an online KRAFT score. Each candidate plus its prior gives a rigorous single-model upper bound on the full Bayesian mixture coding cost."
 )]
 struct Args {
     /// Input byte corpus.
@@ -757,8 +759,9 @@ fn write_run_summary(
     let joint_nats = -best.ln_joint();
 
     let mut output = String::new();
-    output.push_str("# KRAFT sparse DFA run summary\n");
+    output.push_str("# KRAFT sparse DFA hindsight/oracle search summary\n");
     output.push_str("key\tvalue\n");
+    output.push_str("result_semantics\thindsight_oracle_structure_search\n");
     output.push_str(&format!("corpus\t{}\n", args.path.display()));
     output.push_str(&format!("corpus_bytes\t{}\n", metrics.data_len));
     output.push_str(&format!("search_bytes\t{}\n", metrics.search_len));
@@ -801,16 +804,16 @@ fn write_run_summary(
         "best_prior_bits\t{:.12}\n",
         best.model.prior_bits()
     ));
-    output.push_str(&format!("best_total_nats\t{data_nats:.12}\n"));
+    output.push_str(&format!("best_oracle_data_nats\t{data_nats:.12}\n"));
     output.push_str(&format!(
-        "best_certified_mixture_upper_nats\t{joint_nats:.12}\n"
+        "best_single_model_mixture_upper_bound_nats\t{joint_nats:.12}\n"
     ));
     output.push_str(&format!(
-        "best_certified_coding_ratio_uniform_lower\t{:.12}\n",
+        "best_mixture_bound_coding_ratio_uniform_lower\t{:.12}\n",
         metrics.uniform_nats / joint_nats
     ));
     output.push_str(&format!(
-        "best_certified_coding_ratio_kt_lower\t{:.12}\n",
+        "best_mixture_bound_coding_ratio_kt_lower\t{:.12}\n",
         metrics.kt_nats / joint_nats
     ));
     output.push_str(&format!(
@@ -919,7 +922,7 @@ fn write_finalists(path: &PathBuf, finalists: &[Candidate]) -> io::Result<()> {
     }
 
     let mut output = String::new();
-    output.push_str("# KRAFT sparse DFA full-corpus finalists\n");
+    output.push_str("# KRAFT sparse DFA hindsight/oracle full-corpus finalists\n");
     output.push_str(
         "rank\tstates\ttopology\texceptions\tprior_bits\tln_evidence\tln_joint\tsource\tbyte_hex\tdestination\n",
     );
@@ -1006,7 +1009,7 @@ fn run(args: &Args) -> io::Result<()> {
     println!("prefilter_audit_every: {}", args.prefilter_audit_every);
     println!("skeleton_candidates: {}", skeleton_scores.len());
     println!();
-    println!("skeleton_rank\tN\ttopology\tdata_nats\tprior_bits\tjoint_nats");
+    println!("skeleton_rank\tN\ttopology\toracle_data_nats\tprior_bits\tsingle_model_bound_nats");
     for (rank, candidate) in skeleton_scores.iter().enumerate() {
         println!(
             "{}\t{}\t{}\t{:.6}\t{:.6}\t{:.6}",
@@ -1086,14 +1089,14 @@ fn run(args: &Args) -> io::Result<()> {
     println!("kt_coding_ratio_uniform: {:.12}", uniform_nats / kt_nats);
     println!();
     println!(
-        "rank\tN\ttopology\tK\tdata_nats\tprior_bits\tjoint_nats\tdata_ratio_uniform\tcertified_ratio_uniform\tdata_ratio_kt\tcertified_ratio_kt\tfinalist_relative_posterior"
+        "rank\tN\ttopology\tK\toracle_data_nats\tprior_bits\tsingle_model_bound_nats\toracle_ratio_uniform\tmixture_bound_ratio_uniform_lower\toracle_ratio_kt\tmixture_bound_ratio_kt_lower\tfinalist_relative_joint_mass"
     );
 
     for (rank, candidate) in finalists.iter().enumerate() {
         let data_nats = -candidate.ln_evidence;
         let prior_nats = -candidate.model.ln_prior();
         let joint_nats = data_nats + prior_nats;
-        let finalist_relative_posterior = (candidate.ln_joint() - finalist_log_mass).exp();
+        let finalist_relative_joint_mass = (candidate.ln_joint() - finalist_log_mass).exp();
         println!(
             "{}\t{}\t{}\t{}\t{:.12}\t{:.6}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}",
             rank + 1,
@@ -1107,7 +1110,7 @@ fn run(args: &Args) -> io::Result<()> {
             uniform_nats / joint_nats,
             kt_nats / data_nats,
             kt_nats / joint_nats,
-            finalist_relative_posterior,
+            finalist_relative_joint_mass,
         );
     }
 
@@ -1168,17 +1171,18 @@ fn run(args: &Args) -> io::Result<()> {
     println!("best_topology: {}", best.model.topology().as_str());
     println!("best_exceptions: {}", best.exceptions());
     println!("best_prior_bits: {:.12}", best.model.prior_bits());
-    println!("best_total_nats: {:.12}", -best.ln_evidence);
+    println!("result_semantics: hindsight_oracle_structure_search");
+    println!("best_oracle_data_nats: {:.12}", -best.ln_evidence);
     println!(
-        "best_certified_mixture_upper_nats: {:.12}",
+        "best_single_model_mixture_upper_bound_nats: {:.12}",
         -best.ln_joint()
     );
     println!(
-        "best_certified_coding_ratio_uniform_lower: {:.12}",
+        "best_mixture_bound_coding_ratio_uniform_lower: {:.12}",
         uniform_nats / -best.ln_joint()
     );
     println!(
-        "best_certified_coding_ratio_kt_lower: {:.12}",
+        "best_mixture_bound_coding_ratio_kt_lower: {:.12}",
         kt_nats / -best.ln_joint()
     );
     println!("evaluation_seconds: {evaluation_seconds:.6}");
