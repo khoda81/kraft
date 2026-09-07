@@ -123,3 +123,11 @@ The discussion explored Bayesian mixtures over programs, allocating compute acco
 - Tests verify telescoping mass conservation over repeated splits and explicitly cross the `u64` boundary.
 - Simplified `anytime.rs` by removing internal defensive bound-validation machinery; arbitrary bound pairs are no longer publicly constructed.
 - Recorded the rewrite style rule: compact code, invariants by construction, defensive validation at external boundaries.
+
+## 2026-09-07 — Topology and exception-count prior regions
+
+- Exact state-count mass now partitions into the three current sparse-DFA topology descriptions with `P(topology)=1/3`.
+- Added a finite exception-count tail whose split preserves the normalized truncated prior `P(K|N) ∝ 1/((K+1)(K+2))` exactly.
+- The tail stores `K+1` and remaining support mass/count structure, so reaching the mathematical endpoint returns `None` rather than requiring a `K<=max` guard.
+- `N=1` naturally has only `K=0`; for `N>1` the support is `0..=256N`.
+- Tests compare every exact `K` mass for `N=1,2,8` against the existing concrete prior and verify each tail split conserves mass.
