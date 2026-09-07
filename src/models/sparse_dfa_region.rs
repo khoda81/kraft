@@ -1,10 +1,6 @@
 //! Exact prior regions for sparse-DFA structure.
 
-use crate::{
-    anytime::PriorRegion,
-    models::sparse_dfa::DefaultTopology,
-    nat::PositiveNat,
-};
+use crate::{anytime::PriorRegion, models::sparse_dfa::DefaultTopology, nat::PositiveNat};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCount(PositiveNat);
@@ -100,8 +96,7 @@ pub struct ExceptionCount {
 impl PriorRegion for ExceptionCount {
     fn ln_prior_mass(&self) -> f64 {
         let normalizer = self.topology.states.exception_normalizer();
-        self.topology.ln_prior_mass()
-            + normalizer.successor().ln()
+        self.topology.ln_prior_mass() + normalizer.successor().ln()
             - normalizer.ln()
             - self.plus_one.ln()
             - self.plus_one.successor().ln()
@@ -155,7 +150,9 @@ mod tests {
         for _ in 0..1000 {
             let parent = tail.ln_prior_mass();
             let (exact, next) = tail.split();
-            assert!((log_add_exp(exact.ln_prior_mass(), next.ln_prior_mass()) - parent).abs() < 1e-12);
+            assert!(
+                (log_add_exp(exact.ln_prior_mass(), next.ln_prior_mass()) - parent).abs() < 1e-12
+            );
             tail = next;
         }
 
@@ -194,8 +191,10 @@ mod tests {
                 });
                 assert!((children - parent).abs() < 1e-12);
                 assert!(
-                    (exact.ln_prior_mass() - topology_mass - ln_exception_count_prior(key_count, k))
-                        .abs()
+                    (exact.ln_prior_mass()
+                        - topology_mass
+                        - ln_exception_count_prior(key_count, k))
+                    .abs()
                         < 1e-12
                 );
                 tail = next;
