@@ -166,7 +166,9 @@ impl Args {
             return Err(invalid("--prefilter-bytes must be positive"));
         }
         if self.prefilter_candidates < self.beam {
-            return Err(invalid("--prefilter-candidates cannot be smaller than --beam"));
+            return Err(invalid(
+                "--prefilter-candidates cannot be smaller than --beam",
+            ));
         }
         if self.finalists > self.screen_candidates {
             return Err(invalid("--finalists cannot exceed --screen-candidates"));
