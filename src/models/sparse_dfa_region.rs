@@ -1,14 +1,24 @@
-//! Prior regions for the unbounded sparse-DFA state count.
+//! Exact prior regions for sparse-DFA structure.
 
-use crate::{anytime::PriorRegion, nat::PositiveNat};
+use crate::{
+    anytime::PriorRegion,
+    models::sparse_dfa::DefaultTopology,
+    nat::PositiveNat,
+};
 
-/// One exact state count N.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCount(PositiveNat);
 
 impl StateCount {
     pub fn value(&self) -> &PositiveNat {
         &self.0
+    }
+
+    pub fn partition_topologies(&self) -> [TopologyChoice; 3] {
+        DefaultTopology::ALL.map(|topology| TopologyChoice {
+            states: self.clone(),
+            topology,
+        })
     }
 }
 
@@ -24,7 +34,6 @@ impl PriorRegion for StateCount {
     }
 }
 
-/// The infinite region N >= min.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StateCountTail(PositiveNat);
 
@@ -44,34 +53,161 @@ impl PriorRegion for StateCountTail {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TopologyChoice {
+    states: StateCount,
+    topology: DefaultTopology,
+}
+
+impl TopologyChoice {
+    pub fn states(&self) -> &StateCount {
+        &self.states
+    }
+
+    pub fn topology(&self) -> DefaultTopology {
+        self.topology
+    }
+
+    pub fn exception_counts(&self) -> ExceptionCountTail {
+        let normalizer = if self.states.0.predecessor().is_none() {
+            PositiveNat::one()
+        } else {
+            self.states.0.shifted(8).successor()
+        };
+        ExceptionCountTail {
+            topology: self.clone(),
+            next: PositiveNat::one(),
+            remaining: normalizer,
+        }
+    }
+
+    fn exception_normalizer(&self) -> PositiveNat {
+        if self.states.0.predecessor().is_none() {
+            PositiveNat::one()
+        } else {
+            self.states.0.shifted(8).successor()
+        }
+    }
+}
+
+impl PriorRegion for TopologyChoice {
+    fn ln_prior_mass(&self) -> f64 {
+        self.states.ln_prior_mass() - (3.0_f64).ln()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExceptionCount {
+    topology: TopologyChoice,
+    plus_one: PositiveNat,
+}
+
+impl PriorRegion for ExceptionCount {
+    fn ln_prior_mass(&self) -> f64 {
+        let normalizer = self.topology.exception_normalizer();
+        self.topology.ln_prior_mass()
+            + normalizer.successor().ln()
+            - normalizer.ln()
+            - self.plus_one.ln()
+            - self.plus_one.successor().ln()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExceptionCountTail {
+    topology: TopologyChoice,
+    next: PositiveNat,
+    remaining: PositiveNat,
+}
+
+impl ExceptionCountTail {
+    pub fn split(&self) -> (ExceptionCount, Option<Self>) {
+        let exact = ExceptionCount {
+            topology: self.topology.clone(),
+            plus_one: self.next.clone(),
+        };
+        let tail = self.remaining.predecessor().map(|remaining| Self {
+            topology: self.topology.clone(),
+            next: self.next.successor(),
+            remaining,
+        });
+        (exact, tail)
+    }
+}
+
+impl PriorRegion for ExceptionCountTail {
+    fn ln_prior_mass(&self) -> f64 {
+        self.topology.ln_prior_mass() + self.remaining.ln()
+            - self.next.ln()
+            - self.topology.exception_normalizer().ln()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU64;
 
     use super::*;
-    use crate::anytime::log_add_exp;
+    use crate::{anytime::log_add_exp, models::sparse_dfa::ln_exception_count_prior};
 
-    #[test]
-    fn root_is_the_whole_state_count_prior() {
-        assert_eq!(StateCountTail::root().ln_prior_mass(), 0.0);
+    fn states(n: u64) -> StateCount {
+        StateCount::from(PositiveNat::from(NonZeroU64::new(n).unwrap()))
     }
 
     #[test]
-    fn splitting_preserves_telescoping_prior_mass() {
+    fn state_count_tail_preserves_mass_and_crosses_u64() {
         let mut tail = StateCountTail::root();
         for _ in 0..1000 {
             let parent = tail.ln_prior_mass();
             let (exact, next) = tail.split();
-            let children = log_add_exp(exact.ln_prior_mass(), next.ln_prior_mass());
-            assert!((children - parent).abs() < 1e-12);
+            assert!((log_add_exp(exact.ln_prior_mass(), next.ln_prior_mass()) - parent).abs() < 1e-12);
             tail = next;
+        }
+
+        let max = PositiveNat::from(NonZeroU64::new(u64::MAX).unwrap());
+        assert_eq!(max.successor().to_string(), "18446744073709551616");
+    }
+
+    #[test]
+    fn topology_partition_preserves_state_mass() {
+        for n in [1, 2, 8, 1024] {
+            let state = states(n);
+            let children = state
+                .partition_topologies()
+                .iter()
+                .fold(f64::NEG_INFINITY, |sum, child| {
+                    log_add_exp(sum, child.ln_prior_mass())
+                });
+            assert!((children - state.ln_prior_mass()).abs() < 1e-12);
         }
     }
 
     #[test]
-    fn state_count_is_not_limited_by_u64() {
-        let max = PositiveNat::from(NonZeroU64::new(u64::MAX).unwrap());
-        let count = StateCount::from(max.successor());
-        assert_eq!(count.value().to_string(), "18446744073709551616");
+    fn exception_tail_matches_existing_prior_and_preserves_mass() {
+        for n in [1_u64, 2, 8] {
+            let topology = states(n).partition_topologies()[0].clone();
+            let topology_mass = topology.ln_prior_mass();
+            let key_count = if n == 1 { 0 } else { n as usize * 256 };
+            let mut tail = Some(topology.exception_counts());
+            let mut k = 0;
+
+            while let Some(current) = tail {
+                let parent = current.ln_prior_mass();
+                let (exact, next) = current.split();
+                let children = next.as_ref().map_or(exact.ln_prior_mass(), |next| {
+                    log_add_exp(exact.ln_prior_mass(), next.ln_prior_mass())
+                });
+                assert!((children - parent).abs() < 1e-12);
+                assert!(
+                    (exact.ln_prior_mass() - topology_mass - ln_exception_count_prior(key_count, k))
+                        .abs()
+                        < 1e-12
+                );
+                tail = next;
+                k += 1;
+            }
+
+            assert_eq!(k, key_count + 1);
+        }
     }
 }
