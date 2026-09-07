@@ -4,7 +4,9 @@ use crate::{
     anytime::{FrontierNode, LogEvidenceBounds, PriorRegion, aggregate_evidence},
     models::{
         sparse_dfa::{DefaultTopology, SparseDfa, SparseOverride},
-        sparse_dfa_region::{ExceptionCount, ExceptionCountTail, StateCount, StateCountTail, TopologyChoice},
+        sparse_dfa_region::{
+            ExceptionCount, ExceptionCountTail, StateCount, StateCountTail, TopologyChoice,
+        },
     },
 };
 
@@ -28,9 +30,16 @@ impl KeySetRegion {
     fn new(count: &ExceptionCount) -> Option<Self> {
         let states = count.topology().states().to_u16()?;
         let needed = count.to_u32()?;
-        let remaining = if states == 1 { 0 } else { u32::from(states) << 8 };
+        let remaining = if states == 1 {
+            0
+        } else {
+            u32::from(states) << 8
+        };
         Some(Self {
-            shape: Shape { states, topology: count.topology().topology() },
+            shape: Shape {
+                states,
+                topology: count.topology().topology(),
+            },
             next: 0,
             remaining,
             needed,
@@ -84,15 +93,29 @@ impl DestinationRegion {
             left.ln_prior_mass += ((middle - self.start) as f64 / width as f64).ln();
             self.start = middle;
             self.ln_prior_mass += ((self.end - middle) as f64 / width as f64).ln();
-            return vec![SparseRegion::Destinations(left), SparseRegion::Destinations(self)];
+            return vec![
+                SparseRegion::Destinations(left),
+                SparseRegion::Destinations(self),
+            ];
         }
 
         let key = self.keys[self.index];
         let source = (key >> 8) as u16;
         let byte = key as u8;
-        let default = self.shape.topology.default_destination(source, self.shape.states);
-        let destination = if self.start < default { self.start } else { self.start + 1 };
-        self.overrides.push(SparseOverride { source, byte, destination });
+        let default = self
+            .shape
+            .topology
+            .default_destination(source, self.shape.states);
+        let destination = if self.start < default {
+            self.start
+        } else {
+            self.start + 1
+        };
+        self.overrides.push(SparseOverride {
+            source,
+            byte,
+            destination,
+        });
         self.index += 1;
 
         if self.index == self.keys.len() {
@@ -111,7 +134,11 @@ impl DestinationRegion {
 
 fn destinations(shape: Shape, keys: Vec<u32>, ln_prior_mass: f64) -> SparseRegion {
     if keys.is_empty() {
-        SparseRegion::Concrete(SparseDfa::from_valid_parts(shape.states, shape.topology, Vec::new()))
+        SparseRegion::Concrete(SparseDfa::from_valid_parts(
+            shape.states,
+            shape.topology,
+            Vec::new(),
+        ))
     } else {
         SparseRegion::Destinations(DestinationRegion {
             shape,
@@ -163,7 +190,11 @@ impl SparseRegion {
                 let (exact, tail) = region.split();
                 vec![Self::States(exact), Self::StatesTail(tail)]
             }
-            Self::States(region) => region.partition_topologies().into_iter().map(Self::Topology).collect(),
+            Self::States(region) => region
+                .partition_topologies()
+                .into_iter()
+                .map(Self::Topology)
+                .collect(),
             Self::Topology(region) => vec![Self::ExceptionTail(region.exception_counts())],
             Self::ExceptionTail(region) => {
                 let (exact, tail) = region.split();
@@ -181,7 +212,9 @@ impl SparseRegion {
 
 fn node(region: SparseRegion, data: &[u8]) -> FrontierNode<SparseRegion> {
     let evidence = match &region {
-        SparseRegion::Concrete(model) => LogEvidenceBounds::exact(model.ln_prior() + model.ln_evidence(data)),
+        SparseRegion::Concrete(model) => {
+            LogEvidenceBounds::exact(model.ln_prior() + model.ln_evidence(data))
+        }
         _ => LogEvidenceBounds::unresolved(region.ln_prior_mass()),
     };
     FrontierNode { region, evidence }
@@ -214,7 +247,13 @@ impl SparseDfaAnytime {
         };
 
         let parent = self.frontier.swap_remove(index);
-        self.frontier.extend(parent.region.refine().into_iter().map(|region| node(region, data)));
+        self.frontier.extend(
+            parent
+                .region
+                .refine()
+                .into_iter()
+                .map(|region| node(region, data)),
+        );
         self.steps += 1;
         true
     }
@@ -240,7 +279,10 @@ impl SparseDfaAnytime {
     }
 
     pub fn resolved_models(&self) -> usize {
-        self.frontier.iter().filter(|node| node.evidence.is_exact()).count()
+        self.frontier
+            .iter()
+            .filter(|node| node.evidence.is_exact())
+            .count()
     }
 }
 
