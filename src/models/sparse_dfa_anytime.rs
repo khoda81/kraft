@@ -323,6 +323,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn universal_bound_dominates_fixed_dfas() {
+        let data = b"<mediawi";
+        let upper = universal_ln_likelihood_upper(data);
+        for topology in DefaultTopology::ALL {
+            let model = SparseDfa::empty(4, topology).unwrap();
+            assert!(model.ln_evidence(data) <= upper + 1e-12);
+        }
+    }
+
+    #[test]
     fn evidence_interval_tightens_monotonically() {
         let data = b"aba";
         let mut search = SparseDfaAnytime::new(data);
