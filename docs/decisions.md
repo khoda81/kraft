@@ -98,3 +98,9 @@ Hard search cutoffs such as `--states ...` and `--max-exceptions ...` remain val
 ## 2026-09-07 — D021: transition descriptions should reward short generators
 
 **Accepted research direction:** a general DFA is expressive enough to represent fixed-order n-grams, but the present sparse-transition description makes shift-register context machines extremely expensive. Future model languages should assign short descriptions to generated transition functions such as shift registers, counters, latches, and compositions, with optional sparse overrides, rather than special-casing only literal transition tables. Recursive state-local predictors remain a separate extension.
+
+## 2026-09-07 — D022: keep rewrite code minimal and invariant-driven
+
+**Accepted:** keep the inference/model core compact and readable. Internal invariants should be expressed through types, ownership, private construction, and narrow APIs rather than repeated runtime validation of states produced only by KRAFT itself. Defensive checks remain appropriate at external-input boundaries.
+
+The rewrite may make breaking or nuclear internal changes when they remove duplicated logic, stale abstractions, or semantic ambiguity. Readability and line count matter as engineering constraints, provided mathematical correctness and measured performance are preserved.
