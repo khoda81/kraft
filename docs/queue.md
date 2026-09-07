@@ -6,10 +6,10 @@ Updated: 2026-09-07. Work from the first unblocked item. Historical experiment r
 
 - [x] P0 — Lock the causal prequential evaluation contract and Bayesian-mixture/MDL interpretation. Canonical definition: [prequential objective](prequential.md).
 - [x] S0 — Implement and analyze sparse-DFA heuristic search, optimized dense scoring, multi-fidelity prefilter, audit, checkpoint output, and compressed artifact bundles.
-- [ ] A0 — Define the first anytime hypothesis-region types for the existing sparse-DFA prior. Completion: state-count, topology, exception-count, key-set, and destination regions form exact disjoint prior partitions with unit tests for mass conservation.
-- [ ] A1 — Implement a generic anytime mixture frontier with `Partition`, `Tighten`, and `Resolve` refinements plus global lower/upper evidence accounting. Completion: toy finite spaces converge to exhaustive evidence independent of scheduler order.
+- [x] A0 — Define prior-mass-preserving sparse-DFA regions through state count, topology, exception count, key subsets, destinations, and concrete leaves.
+- [ ] A1 — A minimal sparse-DFA frontier is now runnable and maintains global evidence bounds; generalize/refactor only after the concrete experiment shows what the reusable frontier API actually needs.
 - [x] A2 — Add a literal online sparse-DFA learner implementing `Model<u8>` and regression-test the current closed-form `SparseDfa::score()` evidence against `predict -> score -> observe` on fixed structures.
-- [ ] A3 — Connect concrete DFA leaves to chunked causal replay and rigorous suffix/evidence bounds. No rejected candidate may silently lose prior mass.
+- [ ] A3 — Concrete leaves are connected to exact fixed-DFA prefix evidence. Add chunked causal replay and tighter structural/suffix evidence bounds; no unresolved mass may disappear.
 - [ ] A4 — Add checkpoint/resume for the actual frontier rather than only winner/progress TSVs.
 
 ## Next
