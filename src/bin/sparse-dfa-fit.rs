@@ -9,7 +9,15 @@
 //!
 //! so heuristic search quality affects tightness, not validity of the bound.
 
-use std::{collections::HashSet, fs, io, path::PathBuf, process::ExitCode, thread, time::Instant};
+use std::{
+    collections::HashSet,
+    fs::{self, OpenOptions},
+    io::{self, Write},
+    path::PathBuf,
+    process::ExitCode,
+    thread,
+    time::Instant,
+};
 
 use clap::{Parser, ValueEnum};
 use kraft::models::sparse_dfa::{DefaultTopology, SparseDfa, SparseOverride};
@@ -111,6 +119,10 @@ struct Args {
     /// Write every full-corpus finalist DFA here.
     #[arg(long, default_value = "artifacts/sparse-dfa-finalists.tsv")]
     dump_finalists: PathBuf,
+
+    /// Durably append machine-readable search checkpoints here as work completes.
+    #[arg(long, default_value = "artifacts/sparse-dfa-progress.tsv")]
+    dump_progress: PathBuf,
 }
 
 impl Args {
@@ -344,7 +356,8 @@ fn search_skeleton(
     data: &[u8],
     args: &Args,
     skeleton_index: usize,
-) -> Vec<Candidate> {
+    progress: &ProgressWriter,
+) -> io::Result<Vec<Candidate>> {
     let mut beam = vec![initial.clone()];
     let mut all = vec![initial];
 
@@ -378,17 +391,46 @@ fn search_skeleton(
             proposals.len()
         );
 
-        let mut scored = score_models(proposals.into_iter().collect(), data, args.threads());
-        sort_best(&mut scored);
+        let proposal_models = proposals.into_iter().collect::<Vec<_>>();
+        let total = proposal_models.len();
+        let batch_size = (args.threads() * 4).max(32).min(total);
+        let mut scored = Vec::with_capacity(total);
+        for (batch_index, batch) in proposal_models.chunks(batch_size).enumerate() {
+            scored.extend(score_models(batch.to_vec(), data, args.threads()));
+            sort_best(&mut scored);
+            eprintln!(
+                "[sparse-dfa-fit] skeleton={} depth={} scored={}/{} batches={}/{}",
+                skeleton_index,
+                depth,
+                scored.len(),
+                total,
+                batch_index + 1,
+                total.div_ceil(batch_size),
+            );
+            progress.append_candidates(
+                "depth_partial",
+                Some(skeleton_index + 1),
+                Some(depth),
+                data.len(),
+                &scored[..1],
+            )?;
+        }
         scored.truncate(args.beam);
         if scored.is_empty() {
             break;
         }
+        progress.append_candidates(
+            "beam",
+            Some(skeleton_index + 1),
+            Some(depth),
+            data.len(),
+            &scored,
+        )?;
         all.extend(scored.iter().cloned());
         beam = scored;
     }
 
-    all
+    Ok(all)
 }
 
 fn rescore_candidates(
@@ -423,6 +465,77 @@ fn log_sum_exp(values: impl IntoIterator<Item = f64>) -> f64 {
             right + (left - right).exp().ln_1p()
         }
     })
+}
+
+struct ProgressWriter {
+    path: PathBuf,
+}
+
+impl ProgressWriter {
+    fn new(path: PathBuf) -> Self {
+        Self { path }
+    }
+
+    fn reset(
+        &self,
+        args: &Args,
+        data_len: usize,
+        search_len: usize,
+        screen_len: usize,
+    ) -> io::Result<()> {
+        if let Some(parent) = self.path.parent()
+            && !parent.as_os_str().is_empty()
+        {
+            fs::create_dir_all(parent)?;
+        }
+
+        let mut output = String::new();
+        output.push_str("# KRAFT sparse DFA incremental search checkpoints\n");
+        output.push_str(&format!("# corpus_bytes={data_len}\n"));
+        output.push_str(&format!("# search_bytes={search_len}\n"));
+        output.push_str(&format!("# screen_bytes={screen_len}\n"));
+        output.push_str(&format!("# max_exceptions={}\n", args.max_exceptions));
+        output.push_str(&format!("# beam={}\n", args.beam));
+        output.push_str(
+            "stage\tskeleton\tdepth\trank\tscore_bytes\tstates\ttopology\texceptions\tprior_bits\tln_evidence\tln_joint\toverrides\n",
+        );
+        fs::write(&self.path, output)
+    }
+
+    fn append_candidates(
+        &self,
+        stage: &str,
+        skeleton: Option<usize>,
+        depth: Option<usize>,
+        score_bytes: usize,
+        candidates: &[Candidate],
+    ) -> io::Result<()> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&self.path)?;
+
+        for (rank, candidate) in candidates.iter().enumerate() {
+            writeln!(
+                file,
+                "{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:.12}\t{:.12}\t{:.12}\t{}",
+                stage,
+                skeleton.map_or_else(String::new, |value| value.to_string()),
+                depth.map_or_else(String::new, |value| value.to_string()),
+                rank + 1,
+                score_bytes,
+                candidate.model.states(),
+                candidate.model.topology().as_str(),
+                candidate.exceptions(),
+                candidate.model.prior_bits(),
+                candidate.ln_evidence,
+                candidate.ln_joint(),
+                format_overrides(candidate),
+            )?;
+        }
+
+        file.flush()
+    }
 }
 
 fn write_best(path: &PathBuf, candidate: &Candidate) -> io::Result<()> {
@@ -533,6 +646,8 @@ fn run(args: &Args) -> io::Result<()> {
     let screen_len = args.screen_bytes.min(data.len());
     let search = &data[..search_len];
     let screen = &data[..screen_len];
+    let progress = ProgressWriter::new(args.dump_progress.clone());
+    progress.reset(args, data.len(), search_len, screen_len)?;
 
     eprintln!(
         "[sparse-dfa-fit] loaded {} bytes; search={} screen={} states={:?}",
@@ -571,6 +686,7 @@ fn run(args: &Args) -> io::Result<()> {
         );
     }
 
+    progress.append_candidates("skeleton", None, Some(0), search_len, &skeleton_scores)?;
     skeleton_scores.truncate(args.skeletons.min(skeleton_scores.len()));
 
     let mut explored = Vec::new();
@@ -582,7 +698,18 @@ fn run(args: &Args) -> io::Result<()> {
             skeleton.model.states(),
             skeleton.model.topology().as_str()
         );
-        explored.extend(search_skeleton(skeleton, search, args, index));
+        let searched = search_skeleton(skeleton, search, args, index, &progress)?;
+        let mut searched_ranked = searched.clone();
+        sort_best(&mut searched_ranked);
+        searched_ranked.truncate(args.screen_candidates.min(searched_ranked.len()));
+        progress.append_candidates(
+            "skeleton_complete",
+            Some(index + 1),
+            Some(args.max_exceptions),
+            search_len,
+            &searched_ranked,
+        )?;
+        explored.extend(searched);
     }
 
     let mut explored_search = explored;
@@ -600,6 +727,7 @@ fn run(args: &Args) -> io::Result<()> {
         args.finalists.min(args.screen_candidates),
         args.threads(),
     );
+    progress.append_candidates("screened", None, None, screen_len, &screened)?;
 
     eprintln!(
         "[sparse-dfa-fit] scoring {} finalists on full {} bytes",
@@ -611,6 +739,7 @@ fn run(args: &Args) -> io::Result<()> {
         return Err(invalid("search produced no finalists"));
     }
     sort_best(&mut finalists);
+    progress.append_candidates("finalist", None, None, data.len(), &finalists)?;
 
     let kt =
         SparseDfa::empty(1, DefaultTopology::Stay).map_err(|error| invalid(error.to_string()))?;
@@ -668,6 +797,7 @@ fn run(args: &Args) -> io::Result<()> {
     println!();
     println!("best_model_dump: {:?}", args.dump_best);
     println!("finalists_dump: {:?}", args.dump_finalists);
+    println!("progress_dump: {:?}", args.dump_progress);
     println!("best_states: {}", best.model.states());
     println!("best_topology: {}", best.model.topology().as_str());
     println!("best_exceptions: {}", best.exceptions());
