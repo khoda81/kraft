@@ -131,3 +131,12 @@ The discussion explored Bayesian mixtures over programs, allocating compute acco
 - The tail stores `K+1` and remaining support mass/count structure, so reaching the mathematical endpoint returns `None` rather than requiring a `K<=max` guard.
 - `N=1` naturally has only `K=0`; for `N>1` the support is `0..=256N`.
 - Tests compare every exact `K` mass for `N=1,2,8` against the existing concrete prior and verify each tail split conserves mass.
+
+## 2026-09-07 — First runnable sparse-DFA anytime certificate
+
+- Added exact recursive uniform-subset refinement for exception keys using include/exclude probabilities `k/r` and `(r-k)/r`, avoiding enumeration of `choose(256N,K)` children at once.
+- Added binary range refinement for each non-default destination; singleton ranges materialize trusted concrete sparse DFAs without re-validating invariants already guaranteed by the region construction.
+- Added a minimal largest-upper-mass frontier over the full sparse prior. Unresolved regions use the rigorous likelihood upper bound 1; concrete leaves contribute exact prior times integrated prequential evidence.
+- Added `sparse-dfa-anytime`, which reports an interval on exact mixture evidence and therefore on cumulative Bayesian prequential coding cost for a byte prefix.
+- Tests verify evidence intervals tighten monotonically and that empty-sequence upper evidence remains exactly unit mass while the prior is repeatedly partitioned.
+- This is an evidence-certificate experiment, not yet the finite-compute online codec; causal per-symbol approximate prediction and replay-aware tightening remain next.
