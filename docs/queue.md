@@ -8,14 +8,14 @@ Updated: 2026-09-07. Work from the first unblocked item. Historical experiment r
 - [x] S0 — Implement and analyze sparse-DFA heuristic search, optimized dense scoring, multi-fidelity prefilter, audit, checkpoint output, and compressed artifact bundles.
 - [ ] A0 — Define the first anytime hypothesis-region types for the existing sparse-DFA prior. Completion: state-count, topology, exception-count, key-set, and destination regions form exact disjoint prior partitions with unit tests for mass conservation.
 - [ ] A1 — Implement a generic anytime mixture frontier with `Partition`, `Tighten`, and `Resolve` refinements plus global lower/upper evidence accounting. Completion: toy finite spaces converge to exhaustive evidence independent of scheduler order.
-- [ ] A2 — Add a literal online sparse-DFA learner implementing `Model<u8>` and regression-test the current closed-form `SparseDfa::score()` evidence against `predict -> score -> observe` on fixed structures.
+- [x] A2 — Add a literal online sparse-DFA learner implementing `Model<u8>` and regression-test the current closed-form `SparseDfa::score()` evidence against `predict -> score -> observe` on fixed structures.
 - [ ] A3 — Connect concrete DFA leaves to chunked causal replay and rigorous suffix/evidence bounds. No rejected candidate may silently lose prior mass.
 - [ ] A4 — Add checkpoint/resume for the actual frontier rather than only winner/progress TSVs.
 
 ## Next
 
-- [ ] A5 — Implement unbounded state-count traversal for the telescoping sparse prior with no semantic `max_states` cutoff.
-- [ ] A6 — Replace `max_exceptions` semantics with exact exception-count tail regions; compare work-to-certificate under different prior concentration.
+- [x] A5 — Implement unbounded state-count traversal for the telescoping sparse prior with no semantic `max_states` cutoff.
+- [ ] A6 — Exact exception-count tail regions are implemented; next remove `max_exceptions` from the actual anytime search path and compare work-to-certificate under different prior concentration.
 - [ ] A7 — Compare scheduler policies (`U`, `U/cost`, and controlled alternatives) on the same Bayesian target and causal prefix stream.
 - [ ] A8 — Run tiny exact prequential mixture experiments and verify cumulative online loss equals negative log joint mixture evidence.
 - [ ] L0 — Add a compact generated-transition language capable of expressing byte shift registers/n-grams with short descriptions; do not special-case benchmark order in the inference engine.
