@@ -230,9 +230,7 @@ fn node(
         SparseRegion::Concrete(model) => {
             LogEvidenceBounds::exact(model.ln_prior() + model.ln_evidence(data))
         }
-        _ => LogEvidenceBounds::unresolved(
-            region.ln_prior_mass() + unresolved_ln_likelihood_upper,
-        ),
+        _ => LogEvidenceBounds::unresolved(region.ln_prior_mass() + unresolved_ln_likelihood_upper),
     };
     FrontierNode { region, evidence }
 }
@@ -278,13 +276,7 @@ impl SparseDfaAnytime {
                 .region
                 .refine()
                 .into_iter()
-                .map(|region| {
-                    node(
-                        region,
-                        &self.data,
-                        self.unresolved_ln_likelihood_upper,
-                    )
-                }),
+                .map(|region| node(region, &self.data, self.unresolved_ln_likelihood_upper)),
         );
         self.steps += 1;
         true
