@@ -140,3 +140,14 @@ The discussion explored Bayesian mixtures over programs, allocating compute acco
 - Added `sparse-dfa-anytime`, which reports an interval on exact mixture evidence and therefore on cumulative Bayesian prequential coding cost for a byte prefix.
 - Tests verify evidence intervals tighten monotonically and that empty-sequence upper evidence remains exactly unit mass while the prior is repeatedly partitioned.
 - This is an evidence-certificate experiment, not yet the finite-compute online codec; causal per-symbol approximate prediction and replay-aware tightening remain next.
+
+## 2026-09-07 — Heap scheduling and data-aware partial-region bounds
+
+- Replaced the linear largest-upper-bound frontier scan with a `BinaryHeap`. The same 100k-refinement, 8-byte run dropped from about 26.5 s to 0.044 s while reproducing the certificate to floating-point noise (~600x practical speedup).
+- A 16-byte, 1,000,000-refinement run on the heap version completed in about 1.73 s. It left `85.59998 <= C_mix <= 86.27307` nat and had resolved only 279 concrete models, confirming that prior-only structural refinement—not scheduler overhead—was the dominant inference weakness.
+- Added the universal Jeffreys bound as a suffix table and exact common-prefix scoring for partial sparse regions.
+- Key-set regions exploit keys already fixed absent/present; destination regions exploit fixed destinations and singleton destination ranges. For `N=2`, selected overrides also have a unique non-default destination and can be propagated immediately.
+- If all transitions needed by the observed prefix are forced, the region's likelihood is common to every completion. The engine then adds `P(region) * P(prefix|region)` directly to resolved evidence and discards the structural region instead of enumerating its leaves.
+- Exact resolved region masses are accumulated into one scalar rather than retained as frontier objects.
+- Added an exhaustive `N=2`, stay, `K=1` regression: an unresolved partial-region upper bound contains the exact sum over its concrete completions, and after all observed keys are fixed irrelevant the symbolic region mass equals the exhaustive sum.
+- Fixed and regression-tested an off-by-one in the universal suffix table discovered during this change.
