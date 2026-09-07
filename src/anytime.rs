@@ -54,10 +54,7 @@ impl LogEvidenceBounds {
         if ln_lower > ln_upper {
             return Err(BoundError::Reversed);
         }
-        Ok(Self {
-            ln_lower,
-            ln_upper,
-        })
+        Ok(Self { ln_lower, ln_upper })
     }
 
     pub fn exact(ln_mass: f64) -> Result<Self, BoundError> {
@@ -166,11 +163,9 @@ mod tests {
     fn toy_partition_preserves_prior_mass() {
         let parent = ToyRegion(0.75);
         let children = [ToyRegion(0.5), ToyRegion(0.25)];
-        let child_log_mass = children
-            .iter()
-            .fold(f64::NEG_INFINITY, |total, child| {
-                log_add_exp(total, child.ln_prior_mass())
-            });
+        let child_log_mass = children.iter().fold(f64::NEG_INFINITY, |total, child| {
+            log_add_exp(total, child.ln_prior_mass())
+        });
         assert!((child_log_mass.exp() - parent.ln_prior_mass().exp()).abs() < 1e-14);
     }
 }
