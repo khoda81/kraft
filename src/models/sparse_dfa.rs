@@ -239,23 +239,43 @@ impl SparseDfa {
     }
 
     /// Score plus trajectory statistics useful to sparse-structure search.
+    ///
+    /// Scoring is the hot loop of the heuristic search, so compile the sparse
+    /// transition program into a dense lookup table once per candidate. The
+    /// same (state, byte) histogram is both the Bayesian sufficient statistic
+    /// and the transition-visit statistic used by the search; keep only one
+    /// counter array and derive state totals after the trajectory scan.
     pub fn score(&self, data: &[u8]) -> SparseDfaScore {
-        let mut counts = vec![[0_u64; ALPHABET]; usize::from(self.states)];
-        let mut totals = vec![0_u64; usize::from(self.states)];
-        let mut visited_keys = vec![0_u64; usize::from(self.states) * ALPHABET];
+        let states = usize::from(self.states);
+        let key_count = states * ALPHABET;
+
+        let mut transitions = vec![0_u16; key_count];
+        for state_index in 0..states {
+            let state = state_index as u16;
+            let default = self.default_destination(state);
+            transitions[state_index * ALPHABET..(state_index + 1) * ALPHABET].fill(default);
+        }
+        for &edge in &self.overrides {
+            transitions[edge.key() as usize] = edge.destination;
+        }
+
+        let mut visited_keys = vec![0_u64; key_count];
         let mut state = 0_u16;
 
         for &byte in data {
-            let state_index = usize::from(state);
-            counts[state_index][usize::from(byte)] += 1;
-            totals[state_index] += 1;
-            visited_keys[state_index * ALPHABET + usize::from(byte)] += 1;
-            state = self.destination(state, byte);
+            let key = usize::from(state) * ALPHABET + usize::from(byte);
+            visited_keys[key] += 1;
+            state = transitions[key];
         }
 
-        let ln_evidence = counts
-            .iter()
-            .zip(&totals)
+        let state_totals = visited_keys
+            .chunks_exact(ALPHABET)
+            .map(|state_counts| state_counts.iter().sum())
+            .collect::<Vec<u64>>();
+
+        let ln_evidence = visited_keys
+            .chunks_exact(ALPHABET)
+            .zip(&state_totals)
             .filter(|(_, total)| **total != 0)
             .map(|(state_counts, total)| state_ln_evidence(state_counts, *total))
             .sum();
@@ -263,7 +283,7 @@ impl SparseDfa {
         SparseDfaScore {
             ln_evidence,
             final_state: state,
-            state_totals: totals,
+            state_totals,
             visited_keys,
         }
     }
@@ -327,7 +347,7 @@ fn ln_gamma(value: f64) -> f64 {
     LOG_TWO_PI_HALF + (shifted + 0.5) * t.ln() - t + series.ln()
 }
 
-fn state_ln_evidence(counts: &[u64; ALPHABET], total: u64) -> f64 {
+fn state_ln_evidence(counts: &[u64], total: u64) -> f64 {
     let mut result = ln_gamma(JEFFREYS_TOTAL) - ln_gamma(total as f64 + JEFFREYS_TOTAL);
     let prior = ln_gamma(JEFFREYS_ALPHA);
     for &count in counts {
@@ -391,6 +411,56 @@ mod tests {
         assert_eq!(dfa.destination(0, b'q'), 1);
         assert_eq!(dfa.destination(0, b'x'), 0);
         assert_eq!(dfa.destination(1, b'q'), 1);
+    }
+
+    #[test]
+    fn optimized_score_matches_sparse_lookup_reference() {
+        let model = SparseDfa::new(
+            5,
+            DefaultTopology::Cycle,
+            vec![
+                SparseOverride {
+                    source: 0,
+                    byte: b'a',
+                    destination: 3,
+                },
+                SparseOverride {
+                    source: 3,
+                    byte: b'b',
+                    destination: 1,
+                },
+                SparseOverride {
+                    source: 4,
+                    byte: b' ',
+                    destination: 2,
+                },
+            ],
+        )
+        .unwrap();
+        let data = b"abracadabra abracadabra\n<xml>abba</xml>";
+
+        let optimized = model.score(data);
+
+        let mut visited_keys = vec![0_u64; usize::from(model.states()) * ALPHABET];
+        let mut state_totals = vec![0_u64; usize::from(model.states())];
+        let mut state = 0_u16;
+        for &byte in data {
+            let key = usize::from(state) * ALPHABET + usize::from(byte);
+            visited_keys[key] += 1;
+            state_totals[usize::from(state)] += 1;
+            state = model.destination(state, byte);
+        }
+        let ln_evidence = visited_keys
+            .chunks_exact(ALPHABET)
+            .zip(&state_totals)
+            .filter(|(_, total)| **total != 0)
+            .map(|(counts, total)| state_ln_evidence(counts, *total))
+            .sum::<f64>();
+
+        assert_eq!(optimized.final_state, state);
+        assert_eq!(optimized.state_totals, state_totals);
+        assert_eq!(optimized.visited_keys, visited_keys);
+        assert!((optimized.ln_evidence - ln_evidence).abs() < 1e-12);
     }
 
     #[test]
