@@ -15,8 +15,12 @@ impl PositiveNat {
         Self(&self.0 + 1_u8)
     }
 
+    pub fn is_one(&self) -> bool {
+        self.0.bits() == 1
+    }
+
     pub fn predecessor(&self) -> Option<Self> {
-        (self.0.bits() != 1).then(|| Self(&self.0 - 1_u8))
+        (!self.is_one()).then(|| Self(&self.0 - 1_u8))
     }
 
     pub fn shifted(&self, bits: usize) -> Self {
