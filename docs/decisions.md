@@ -16,8 +16,8 @@ Date of initial capture: 2026-09-06. Earlier direction is reconstructed from the
 
 ## Open decisions
 
-- O1: transition convention, emissions, start state, model bounds, and parameter priors.
-- O2: actual self-delimiting code and model-length prior; how finite truncation is normalized.
+- O1: **Resolved by D018/D019 for the current byte models.** Predict before observe; fixed DFA starts in state 0; state emissions are Dirichlet-1/2 integrated predictors. Future model languages may reopen their own emission semantics.
+- O2: proper description priors for each declared model language; finite inference must not silently renormalize away nonzero prior support.
 - O3: labeled descriptions versus canonicalized models with aggregated prior mass.
 - O4: multiply-shift formula, word width, overflow, state range, and structural capacity.
 - O5: scheduling cost unit and policy; whether fixed speed-weighted priors merit a separate comparison.
@@ -76,3 +76,25 @@ This changes representation and diagnostics only. It does not change the conditi
 The new evaluator computes joint evidence and cumulative coding cost only; it does not replace the leaf engine when posterior components or sequential predictive distributions are required. Complete-table enumeration and leaf-oracle agreement are mandatory regressions. Node guards and garbage collection manage representation resources but do not prune model mass.
 
 Use discovery quotient as the default leaf-oracle mode. Retain predictive quotient as an explicit option and regression test because it preserves evidence but showed no component reduction and added runtime on the measured prefix. For the ADD prototype, retain first-seen byte-pair variable ordering until variable-order experiments provide evidence for a replacement.
+
+## 2026-09-07 — D018: causal prequential coding is the primary KRAFT score
+
+**Accepted:** KRAFT is evaluated as an online codec. For every observation, form the predictive distribution from the already observed/decoded prefix, score the symbol, then update. The primary score is cumulative prequential coding cost. A structure selected using the whole evaluation stream and then scored on that same stream is a hindsight/oracle diagnostic, not the online score of the structure-learning algorithm.
+
+Optimized batch evidence calculations are permitted only when proven equivalent to the literal causal `predict -> score -> observe` product for a prespecified model. The generic evaluator remains the semantic reference.
+
+## 2026-09-07 — D019: Bayesian prior complexity is paid through prediction, not separate transmission
+
+**Accepted:** KRAFT's actual model is the Bayesian mixture `M(x)=sum_h pi(h) P_h(x)`. Encoder and decoder share the prior and update it causally; no selected model description is transmitted after training. The KRAFT code length is `-ln M(x)`, equivalently the sum of online mixture log losses.
+
+For any fixed candidate `h`, `-ln P_h(x) - ln pi(h)` is a valid single-hypothesis upper bound on the Bayesian-mixture code and has an MDL/two-part form. When one posterior mode dominates, Bayesian prequential cost approaches that value. The prior term is therefore an inference/model-identification penalty, not an extra payload added to the measured mixture code.
+
+## 2026-09-07 — D020: model-space choices are latent; resource choices are inference knobs
+
+**Accepted direction for the rewrite:** quantities that change which hypotheses exist or their prior probability belong inside the Bayesian model. For sparse DFAs this includes state count `N`, default topology, exception count `K`, exception keys, and destinations. Finite compute should determine only which unresolved mass is refined and how tight the current approximation/certificate is.
+
+Hard search cutoffs such as `--states ...` and `--max-exceptions ...` remain valid for historical/oracle experiments but are not acceptable as the semantics of the eventual KRAFT mixture when the declared prior gives omitted structures nonzero mass.
+
+## 2026-09-07 — D021: transition descriptions should reward short generators
+
+**Accepted research direction:** a general DFA is expressive enough to represent fixed-order n-grams, but the present sparse-transition description makes shift-register context machines extremely expensive. Future model languages should assign short descriptions to generated transition functions such as shift registers, counters, latches, and compositions, with optional sparse overrides, rather than special-casing only literal transition tables. Recursive state-local predictors remain a separate extension.
