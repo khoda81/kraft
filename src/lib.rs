@@ -1,5 +1,6 @@
 //! KRAFT: compute-aware Bayesian program mixtures and prequential evaluation.
 
+pub mod anytime;
 pub mod baselines;
 pub mod evaluate;
 pub mod model;
