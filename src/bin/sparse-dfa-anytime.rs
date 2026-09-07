@@ -51,7 +51,7 @@ fn report(search: &SparseDfaAnytime, uniform_nats: f64, kt_nats: f64, elapsed: f
         "{}\t{}\t{}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.3}",
         search.steps(),
         search.regions(),
-        search.resolved_models(),
+        search.resolved_regions(),
         lower,
         upper,
         ratio_uniform_lower,
