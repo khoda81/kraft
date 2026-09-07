@@ -31,3 +31,7 @@ Proposed short inputs: empty sequence, single symbols, all-zero/all-one, alterna
 Freeze the model family/prior from E0–E1. Compare schedulers without changing the target posterior. Use geometric compute budgets and paired streams; include the cost of catching up newly admitted models. Plot or tabulate prediction regret versus total work and end-to-end time. If studying `u/c` as a fixed prior, label that as a separate model-prior ablation, with its own exact reference.
 
 Do not declare success from a favorable average alone: inspect worst checked certificate violation (must be zero within tolerance), per-stream regressions, and whether the policy actually reaches useful tail bounds.
+
+## Recent heuristic/oracle campaigns
+
+- [E0e sparse-DFA full-corpus search](E0-sparse-dfa-search.md): audited multi-fidelity beam search through `K=256`; candidate costs are hindsight/oracle diagnostics and single-model mixture bounds, not online KRAFT scores.
