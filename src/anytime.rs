@@ -4,32 +4,11 @@
 //! Bayesian target and evidence bounds; a scheduler may choose refinement order
 //! without changing the meaning of the regions or their probability mass.
 
-use std::{error::Error, fmt};
-
 /// A disjoint subset of the declared hypothesis space with known prior mass.
 pub trait PriorRegion {
     /// Natural logarithm of the region's total prior probability.
     fn ln_prior_mass(&self) -> f64;
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BoundError {
-    NaN,
-    PositiveLogMass,
-    Reversed,
-}
-
-impl fmt::Display for BoundError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::NaN => write!(f, "evidence bounds cannot contain NaN"),
-            Self::PositiveLogMass => write!(f, "joint probability mass cannot exceed one"),
-            Self::Reversed => write!(f, "evidence lower bound exceeds upper bound"),
-        }
-    }
-}
-
-impl Error for BoundError {}
 
 /// Lower and upper bounds on one region's joint Bayesian contribution.
 ///
@@ -44,25 +23,18 @@ pub struct LogEvidenceBounds {
 }
 
 impl LogEvidenceBounds {
-    pub fn new(ln_lower: f64, ln_upper: f64) -> Result<Self, BoundError> {
-        if ln_lower.is_nan() || ln_upper.is_nan() {
-            return Err(BoundError::NaN);
+    pub fn exact(ln_mass: f64) -> Self {
+        Self {
+            ln_lower: ln_mass,
+            ln_upper: ln_mass,
         }
-        if ln_lower > 0.0 || ln_upper > 0.0 {
-            return Err(BoundError::PositiveLogMass);
-        }
-        if ln_lower > ln_upper {
-            return Err(BoundError::Reversed);
-        }
-        Ok(Self { ln_lower, ln_upper })
     }
 
-    pub fn exact(ln_mass: f64) -> Result<Self, BoundError> {
-        Self::new(ln_mass, ln_mass)
-    }
-
-    pub fn unresolved(ln_upper: f64) -> Result<Self, BoundError> {
-        Self::new(f64::NEG_INFINITY, ln_upper)
+    pub fn unresolved(ln_upper: f64) -> Self {
+        Self {
+            ln_lower: f64::NEG_INFINITY,
+            ln_upper,
+        }
     }
 
     pub fn ln_lower(self) -> f64 {
@@ -99,14 +71,17 @@ pub enum Refinement<R> {
 /// Aggregate disjoint region bounds into global mixture-evidence bounds.
 pub fn aggregate_evidence<'a>(
     bounds: impl IntoIterator<Item = &'a LogEvidenceBounds>,
-) -> Result<LogEvidenceBounds, BoundError> {
+) -> LogEvidenceBounds {
     let mut lower = f64::NEG_INFINITY;
     let mut upper = f64::NEG_INFINITY;
     for bound in bounds {
         lower = log_add_exp(lower, bound.ln_lower);
         upper = log_add_exp(upper, bound.ln_upper);
     }
-    LogEvidenceBounds::new(lower, upper)
+    LogEvidenceBounds {
+        ln_lower: lower,
+        ln_upper: upper,
+    }
 }
 
 /// Stable `ln(exp(a) + exp(b))` with negative infinity as exact zero.
@@ -138,23 +113,16 @@ mod tests {
     }
 
     #[test]
-    fn validates_probability_bounds() {
-        assert_eq!(
-            LogEvidenceBounds::new(-2.0, -3.0),
-            Err(BoundError::Reversed)
-        );
-        assert_eq!(
-            LogEvidenceBounds::new(-1.0, 0.1),
-            Err(BoundError::PositiveLogMass)
-        );
-        assert!(LogEvidenceBounds::exact(f64::NEG_INFINITY).is_ok());
-    }
-
-    #[test]
     fn aggregates_disjoint_evidence_bounds() {
-        let a = LogEvidenceBounds::new(0.1_f64.ln(), 0.2_f64.ln()).unwrap();
-        let b = LogEvidenceBounds::new(0.3_f64.ln(), 0.4_f64.ln()).unwrap();
-        let total = aggregate_evidence([&a, &b]).unwrap();
+        let a = LogEvidenceBounds {
+            ln_lower: 0.1_f64.ln(),
+            ln_upper: 0.2_f64.ln(),
+        };
+        let b = LogEvidenceBounds {
+            ln_lower: 0.3_f64.ln(),
+            ln_upper: 0.4_f64.ln(),
+        };
+        let total = aggregate_evidence([&a, &b]);
         assert!((total.ln_lower().exp() - 0.4).abs() < 1e-14);
         assert!((total.ln_upper().exp() - 0.6).abs() < 1e-14);
     }
