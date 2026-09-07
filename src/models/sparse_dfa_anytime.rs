@@ -1,5 +1,7 @@
 //! Runnable anytime evidence bounds for the sparse-DFA Bayesian mixture.
 
+use std::{cmp::Ordering, collections::BinaryHeap};
+
 use crate::{
     anytime::{FrontierNode, LogEvidenceBounds, PriorRegion, aggregate_evidence},
     models::{
@@ -236,48 +238,93 @@ fn node(
 }
 
 #[derive(Debug, Clone)]
+struct WorkItem {
+    node: FrontierNode<SparseRegion>,
+    order: usize,
+}
+
+impl PartialEq for WorkItem {
+    fn eq(&self, other: &Self) -> bool {
+        self.order == other.order
+    }
+}
+
+impl Eq for WorkItem {}
+
+impl PartialOrd for WorkItem {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for WorkItem {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.node
+            .evidence
+            .ln_upper()
+            .total_cmp(&other.node.evidence.ln_upper())
+            .then_with(|| other.order.cmp(&self.order))
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct SparseDfaAnytime {
     data: Vec<u8>,
-    frontier: Vec<FrontierNode<SparseRegion>>,
+    work: BinaryHeap<WorkItem>,
+    frozen: Vec<FrontierNode<SparseRegion>>,
     unresolved_ln_likelihood_upper: f64,
+    next_order: usize,
     steps: usize,
+    resolved_models: usize,
 }
 
 impl SparseDfaAnytime {
     pub fn new(data: &[u8]) -> Self {
         let unresolved_ln_likelihood_upper = universal_ln_likelihood_upper(data);
+        let root = node(
+            SparseRegion::StatesTail(StateCountTail::root()),
+            data,
+            unresolved_ln_likelihood_upper,
+        );
         Self {
             data: data.to_vec(),
-            frontier: vec![node(
-                SparseRegion::StatesTail(StateCountTail::root()),
-                data,
-                unresolved_ln_likelihood_upper,
-            )],
+            work: BinaryHeap::from([WorkItem {
+                node: root,
+                order: 0,
+            }]),
+            frozen: Vec::new(),
             unresolved_ln_likelihood_upper,
+            next_order: 1,
             steps: 0,
+            resolved_models: 0,
+        }
+    }
+
+    fn push(&mut self, node: FrontierNode<SparseRegion>) {
+        if node.region.refinable() {
+            self.work.push(WorkItem {
+                node,
+                order: self.next_order,
+            });
+            self.next_order += 1;
+        } else {
+            self.resolved_models += usize::from(node.evidence.is_exact());
+            self.frozen.push(node);
         }
     }
 
     pub fn step(&mut self) -> bool {
-        let Some(index) = self
-            .frontier
-            .iter()
-            .enumerate()
-            .filter(|(_, node)| node.region.refinable())
-            .max_by(|(_, a), (_, b)| a.evidence.ln_upper().total_cmp(&b.evidence.ln_upper()))
-            .map(|(index, _)| index)
-        else {
+        let Some(parent) = self.work.pop() else {
             return false;
         };
 
-        let parent = self.frontier.swap_remove(index);
-        self.frontier.extend(
-            parent
-                .region
-                .refine()
-                .into_iter()
-                .map(|region| node(region, &self.data, self.unresolved_ln_likelihood_upper)),
-        );
+        for region in parent.node.region.refine() {
+            self.push(node(
+                region,
+                &self.data,
+                self.unresolved_ln_likelihood_upper,
+            ));
+        }
         self.steps += 1;
         true
     }
@@ -291,7 +338,12 @@ impl SparseDfaAnytime {
     }
 
     pub fn bounds(&self) -> LogEvidenceBounds {
-        aggregate_evidence(self.frontier.iter().map(|node| &node.evidence))
+        aggregate_evidence(
+            self.work
+                .iter()
+                .map(|item| &item.node.evidence)
+                .chain(self.frozen.iter().map(|node| &node.evidence)),
+        )
     }
 
     pub fn steps(&self) -> usize {
@@ -299,14 +351,11 @@ impl SparseDfaAnytime {
     }
 
     pub fn regions(&self) -> usize {
-        self.frontier.len()
+        self.work.len() + self.frozen.len()
     }
 
     pub fn resolved_models(&self) -> usize {
-        self.frontier
-            .iter()
-            .filter(|node| node.evidence.is_exact())
-            .count()
+        self.resolved_models
     }
 }
 
