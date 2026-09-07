@@ -1,7 +1,5 @@
 //! Prior regions for the unbounded sparse-DFA state count.
 
-use std::num::NonZeroU64;
-
 use crate::{anytime::PriorRegion, nat::PositiveNat};
 
 /// One exact state count N.
@@ -9,14 +7,6 @@ use crate::{anytime::PriorRegion, nat::PositiveNat};
 pub struct StateCount(PositiveNat);
 
 impl StateCount {
-    pub fn one() -> Self {
-        Self(PositiveNat::one())
-    }
-
-    pub fn successor(&self) -> Self {
-        Self(self.0.successor())
-    }
-
     pub fn value(&self) -> &PositiveNat {
         &self.0
     }
@@ -28,12 +18,6 @@ impl From<PositiveNat> for StateCount {
     }
 }
 
-impl From<NonZeroU64> for StateCount {
-    fn from(value: NonZeroU64) -> Self {
-        Self(value.into())
-    }
-}
-
 impl PriorRegion for StateCount {
     fn ln_prior_mass(&self) -> f64 {
         -self.0.ln() - self.0.successor().ln()
@@ -42,31 +26,25 @@ impl PriorRegion for StateCount {
 
 /// The infinite region N >= min.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StateCountTail(StateCount);
+pub struct StateCountTail(PositiveNat);
 
 impl StateCountTail {
     pub fn root() -> Self {
-        Self(StateCount::one())
+        Self(PositiveNat::one())
     }
 
     pub fn from_min(min: StateCount) -> Self {
-        Self(min)
-    }
-
-    pub fn min(&self) -> &StateCount {
-        &self.0
+        Self(min.0)
     }
 
     pub fn split(&self) -> (StateCount, Self) {
-        let exact = self.0.clone();
-        let next = exact.successor();
-        (exact, Self(next))
+        (StateCount(self.0.clone()), Self(self.0.successor()))
     }
 }
 
 impl PriorRegion for StateCountTail {
     fn ln_prior_mass(&self) -> f64 {
-        -self.0.0.ln()
+        -self.0.ln()
     }
 }
 
