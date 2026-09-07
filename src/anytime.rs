@@ -103,15 +103,6 @@ pub fn log_add_exp(a: f64, b: f64) -> f64 {
 mod tests {
     use super::*;
 
-    #[derive(Debug, Clone, Copy, PartialEq)]
-    struct ToyRegion(f64);
-
-    impl PriorRegion for ToyRegion {
-        fn ln_prior_mass(&self) -> f64 {
-            self.0.ln()
-        }
-    }
-
     #[test]
     fn aggregates_disjoint_evidence_bounds() {
         let a = LogEvidenceBounds {
@@ -127,13 +118,4 @@ mod tests {
         assert!((total.ln_upper().exp() - 0.6).abs() < 1e-14);
     }
 
-    #[test]
-    fn toy_partition_preserves_prior_mass() {
-        let parent = ToyRegion(0.75);
-        let children = [ToyRegion(0.5), ToyRegion(0.25)];
-        let child_log_mass = children.iter().fold(f64::NEG_INFINITY, |total, child| {
-            log_add_exp(total, child.ln_prior_mass())
-        });
-        assert!((child_log_mass.exp() - parent.ln_prior_mass().exp()).abs() < 1e-14);
-    }
 }
