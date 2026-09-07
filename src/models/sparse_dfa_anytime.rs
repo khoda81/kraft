@@ -449,6 +449,63 @@ impl SparseDfaAnytime {
 mod tests {
     use super::*;
 
+    fn n2_stay_k1_region() -> KeySetRegion {
+        let (_, tail) = StateCountTail::root().split();
+        let (states, _) = tail.split();
+        let topology = states.partition_topologies()[0].clone();
+        let (_, tail) = topology.exception_counts().split();
+        let (count, _) = tail.unwrap().split();
+        KeySetRegion::new(&count).unwrap()
+    }
+
+    fn exclude_prefix(mut region: KeySetRegion, count: usize) -> KeySetRegion {
+        for _ in 0..count {
+            region = match region.refine().pop().unwrap() {
+                SparseRegion::Keys(region) => region,
+                _ => unreachable!(),
+            };
+        }
+        region
+    }
+
+    fn exact_region_mass(region: &KeySetRegion, data: &[u8]) -> f64 {
+        (region.next..region.next + region.remaining).fold(
+            f64::NEG_INFINITY,
+            |mass, key| {
+                let source = (key >> 8) as u16;
+                let byte = key as u8;
+                let model = SparseDfa::from_valid_parts(
+                    2,
+                    DefaultTopology::Stay,
+                    vec![SparseOverride {
+                        source,
+                        byte,
+                        destination: 1 - source,
+                    }],
+                );
+                log_add_exp(mass, model.ln_prior() + model.ln_evidence(data))
+            },
+        )
+    }
+
+    #[test]
+    fn partial_region_bound_contains_exhaustive_mass_and_resolves_when_irrelevant() {
+        let data = b"aba";
+        let suffix = universal_suffix_upper(data);
+
+        let unresolved = exclude_prefix(n2_stay_k1_region(), 98);
+        let exact_mass = exact_region_mass(&unresolved, data);
+        let bound = node(SparseRegion::Keys(unresolved), data, &suffix).evidence;
+        assert!(!bound.is_exact());
+        assert!(exact_mass <= bound.ln_upper() + 1e-12);
+
+        let irrelevant = exclude_prefix(n2_stay_k1_region(), 99);
+        let exact_mass = exact_region_mass(&irrelevant, data);
+        let bound = node(SparseRegion::Keys(irrelevant), data, &suffix).evidence;
+        assert!(bound.is_exact());
+        assert!((bound.ln_lower() - exact_mass).abs() < 1e-12);
+    }
+
     #[test]
     fn universal_suffix_bound_has_correct_offsets() {
         let data = b"abca";
