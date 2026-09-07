@@ -117,5 +117,4 @@ mod tests {
         assert!((total.ln_lower().exp() - 0.4).abs() < 1e-14);
         assert!((total.ln_upper().exp() - 0.6).abs() < 1e-14);
     }
-
 }
