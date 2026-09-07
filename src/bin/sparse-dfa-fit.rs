@@ -713,7 +713,6 @@ fn write_best(path: &PathBuf, candidate: &Candidate) -> io::Result<()> {
     fs::write(path, output)
 }
 
-
 #[derive(Debug, Clone, Copy)]
 struct RunSummaryMetrics {
     data_len: usize,
