@@ -241,8 +241,7 @@ impl SparseRegion {
                     matching += u64::from(previous_byte == byte);
                 }
             }
-            ln_likelihood +=
-                ((matching as f64 + 0.5) / (total as f64 + 128.0)).ln();
+            ln_likelihood += ((matching as f64 + 0.5) / (total as f64 + 128.0)).ln();
             states.push(state);
 
             if i + 1 == data.len() {
@@ -289,12 +288,11 @@ impl SparseRegion {
 
 fn universal_suffix_upper(data: &[u8]) -> Vec<f64> {
     let mut counts = [0_u64; 256];
-    let mut suffix = Vec::with_capacity(data.len() + 1);
-    suffix.push(0.0);
-    for &byte in data {
+    let mut suffix = vec![0.0; data.len() + 1];
+    for (i, &byte) in data.iter().enumerate() {
         let count = counts[usize::from(byte)];
         counts[usize::from(byte)] += 1;
-        suffix.push(((count as f64 + 0.5) / (count as f64 + 128.0)).ln());
+        suffix[i] = ((count as f64 + 0.5) / (count as f64 + 128.0)).ln();
     }
     for i in (0..data.len()).rev() {
         suffix[i] += suffix[i + 1];
@@ -302,11 +300,7 @@ fn universal_suffix_upper(data: &[u8]) -> Vec<f64> {
     suffix
 }
 
-fn node(
-    region: SparseRegion,
-    data: &[u8],
-    suffix_upper: &[f64],
-) -> FrontierNode<SparseRegion> {
+fn node(region: SparseRegion, data: &[u8], suffix_upper: &[f64]) -> FrontierNode<SparseRegion> {
     let ln_prior = region.ln_prior_mass();
     let evidence = match &region {
         SparseRegion::Concrete(model) => {
@@ -390,8 +384,7 @@ impl SparseDfaAnytime {
 
     fn push(&mut self, node: FrontierNode<SparseRegion>) {
         if node.evidence.is_exact() {
-            self.resolved_ln_mass =
-                log_add_exp(self.resolved_ln_mass, node.evidence.ln_lower());
+            self.resolved_ln_mass = log_add_exp(self.resolved_ln_mass, node.evidence.ln_lower());
             self.resolved_regions += 1;
         } else if node.region.refinable() {
             self.work.push(WorkItem {
@@ -455,6 +448,23 @@ impl SparseDfaAnytime {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn universal_suffix_bound_has_correct_offsets() {
+        let data = b"abca";
+        let suffix = universal_suffix_upper(data);
+        let mut counts = [0_u64; 256];
+        let mut terms = Vec::new();
+        for &byte in data {
+            let count = counts[usize::from(byte)];
+            counts[usize::from(byte)] += 1;
+            terms.push(((count as f64 + 0.5) / (count as f64 + 128.0)).ln());
+        }
+        for i in 0..=data.len() {
+            let expected: f64 = terms[i..].iter().sum();
+            assert!((suffix[i] - expected).abs() < 1e-12);
+        }
+    }
 
     #[test]
     fn universal_bound_dominates_fixed_dfas() {
