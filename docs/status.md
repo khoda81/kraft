@@ -30,7 +30,7 @@ Historical sparse-search results remain useful for model-language and search-qua
 
 **Rewrite sparse-DFA inference around unresolved Bayesian mass.** The model prior should remain unbounded where declared; `N`, topology, and `K` become latent model structure rather than researcher-selected search dimensions. The engine should maintain disjoint hypothesis regions with exact prior mass plus lower/upper evidence bounds, and refine regions by partitioning, tightening, or exact symbolic resolution.
 
-The rewrite now has arbitrary-precision positive naturals and an unbounded state-count tail region for the sparse prior. `StateCountTail::root()` represents all `N>=1`; splitting preserves the telescoping prior exactly at the model level and introduces no `max_states` cutoff. The next milestone is to lift topology and exception-count structure into the same prior-mass-preserving region system, then build the tiny exact reference where scheduler order cannot change the final mixture.
+The rewrite now has arbitrary-precision structural naturals plus exact prior regions for state count, topology, and exception count. `StateCountTail::root()` represents all `N>=1`; exact state mass partitions uniformly over the three current topology descriptions; each topology then exposes the proper finite `K` prior as an exact count plus an optional remaining tail. `N=1` terminates naturally at `K=0`. The next structural layers are exception-key sets and destinations, followed by the tiny exact frontier reference where scheduler order cannot change the mixture.
 
 ## Model-language follow-up
 
