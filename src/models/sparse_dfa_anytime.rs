@@ -3,7 +3,7 @@
 use std::{cmp::Ordering, collections::BinaryHeap};
 
 use crate::{
-    anytime::{FrontierNode, LogEvidenceBounds, PriorRegion, aggregate_evidence},
+    anytime::{FrontierNode, LogEvidenceBounds, PriorRegion, log_add_exp},
     models::{
         sparse_dfa::{DefaultTopology, SparseDfa, SparseOverride},
         sparse_dfa_region::{
@@ -182,6 +182,81 @@ impl PriorRegion for SparseRegion {
 }
 
 impl SparseRegion {
+    fn forced_destination(&self, state: u16, byte: u8) -> Option<u16> {
+        let key = (u32::from(state) << 8) | u32::from(byte);
+        match self {
+            Self::States(region) if region.to_u16() == Some(1) => Some(0),
+            Self::Topology(region) if region.states().to_u16() == Some(1) => Some(0),
+            Self::Keys(region) => {
+                let default = region
+                    .shape
+                    .topology
+                    .default_destination(state, region.shape.states);
+                let selected = region.chosen.binary_search(&key).is_ok()
+                    || (key >= region.next && region.needed == region.remaining);
+                if selected {
+                    (region.shape.states == 2).then_some(1 - default)
+                } else if key < region.next || region.needed == 0 {
+                    Some(default)
+                } else {
+                    None
+                }
+            }
+            Self::Destinations(region) => {
+                let default = region
+                    .shape
+                    .topology
+                    .default_destination(state, region.shape.states);
+                let Ok(index) = region.keys.binary_search(&key) else {
+                    return Some(default);
+                };
+                if index < region.index {
+                    return Some(region.overrides[index].destination);
+                }
+                if index == region.index && region.end - region.start == 1 {
+                    return Some(if region.start < default {
+                        region.start
+                    } else {
+                        region.start + 1
+                    });
+                }
+                None
+            }
+            Self::Concrete(model) => Some(model.destination(state, byte)),
+            _ => None,
+        }
+    }
+
+    fn ln_likelihood_bound(&self, data: &[u8], suffix_upper: &[f64]) -> (f64, bool) {
+        let mut states = Vec::with_capacity(data.len());
+        let mut state = 0_u16;
+        let mut ln_likelihood = 0.0;
+
+        for (i, &byte) in data.iter().enumerate() {
+            let mut total = 0_u64;
+            let mut matching = 0_u64;
+            for (&previous_state, &previous_byte) in states.iter().zip(data) {
+                if previous_state == state {
+                    total += 1;
+                    matching += u64::from(previous_byte == byte);
+                }
+            }
+            ln_likelihood +=
+                ((matching as f64 + 0.5) / (total as f64 + 128.0)).ln();
+            states.push(state);
+
+            if i + 1 == data.len() {
+                return (ln_likelihood, true);
+            }
+            let Some(next) = self.forced_destination(state, byte) else {
+                return (ln_likelihood + suffix_upper[i + 1], false);
+            };
+            state = next;
+        }
+
+        (0.0, true)
+    }
+
     fn refinable(&self) -> bool {
         !matches!(self, Self::Concrete(_) | Self::Opaque(_))
     }
@@ -212,27 +287,39 @@ impl SparseRegion {
     }
 }
 
-fn universal_ln_likelihood_upper(data: &[u8]) -> f64 {
+fn universal_suffix_upper(data: &[u8]) -> Vec<f64> {
     let mut counts = [0_u64; 256];
-    data.iter()
-        .map(|&byte| {
-            let count = counts[usize::from(byte)];
-            counts[usize::from(byte)] += 1;
-            ((count as f64 + 0.5) / (count as f64 + 128.0)).ln()
-        })
-        .sum()
+    let mut suffix = Vec::with_capacity(data.len() + 1);
+    suffix.push(0.0);
+    for &byte in data {
+        let count = counts[usize::from(byte)];
+        counts[usize::from(byte)] += 1;
+        suffix.push(((count as f64 + 0.5) / (count as f64 + 128.0)).ln());
+    }
+    for i in (0..data.len()).rev() {
+        suffix[i] += suffix[i + 1];
+    }
+    suffix
 }
 
 fn node(
     region: SparseRegion,
     data: &[u8],
-    unresolved_ln_likelihood_upper: f64,
+    suffix_upper: &[f64],
 ) -> FrontierNode<SparseRegion> {
+    let ln_prior = region.ln_prior_mass();
     let evidence = match &region {
         SparseRegion::Concrete(model) => {
             LogEvidenceBounds::exact(model.ln_prior() + model.ln_evidence(data))
         }
-        _ => LogEvidenceBounds::unresolved(region.ln_prior_mass() + unresolved_ln_likelihood_upper),
+        _ => {
+            let (ln_likelihood, exact) = region.ln_likelihood_bound(data, suffix_upper);
+            if exact {
+                LogEvidenceBounds::exact(ln_prior + ln_likelihood)
+            } else {
+                LogEvidenceBounds::unresolved(ln_prior + ln_likelihood)
+            }
+        }
     };
     FrontierNode { region, evidence }
 }
@@ -270,46 +357,50 @@ impl Ord for WorkItem {
 #[derive(Debug, Clone)]
 pub struct SparseDfaAnytime {
     data: Vec<u8>,
+    suffix_upper: Vec<f64>,
     work: BinaryHeap<WorkItem>,
-    frozen: Vec<FrontierNode<SparseRegion>>,
-    unresolved_ln_likelihood_upper: f64,
+    opaque: Vec<FrontierNode<SparseRegion>>,
+    resolved_ln_mass: f64,
     next_order: usize,
     steps: usize,
-    resolved_models: usize,
+    resolved_regions: usize,
 }
 
 impl SparseDfaAnytime {
     pub fn new(data: &[u8]) -> Self {
-        let unresolved_ln_likelihood_upper = universal_ln_likelihood_upper(data);
+        let suffix_upper = universal_suffix_upper(data);
         let root = node(
             SparseRegion::StatesTail(StateCountTail::root()),
             data,
-            unresolved_ln_likelihood_upper,
+            &suffix_upper,
         );
-        Self {
+        let mut search = Self {
             data: data.to_vec(),
-            work: BinaryHeap::from([WorkItem {
-                node: root,
-                order: 0,
-            }]),
-            frozen: Vec::new(),
-            unresolved_ln_likelihood_upper,
-            next_order: 1,
+            suffix_upper,
+            work: BinaryHeap::new(),
+            opaque: Vec::new(),
+            resolved_ln_mass: f64::NEG_INFINITY,
+            next_order: 0,
             steps: 0,
-            resolved_models: 0,
-        }
+            resolved_regions: 0,
+        };
+        search.push(root);
+        search
     }
 
     fn push(&mut self, node: FrontierNode<SparseRegion>) {
-        if node.region.refinable() {
+        if node.evidence.is_exact() {
+            self.resolved_ln_mass =
+                log_add_exp(self.resolved_ln_mass, node.evidence.ln_lower());
+            self.resolved_regions += 1;
+        } else if node.region.refinable() {
             self.work.push(WorkItem {
                 node,
                 order: self.next_order,
             });
             self.next_order += 1;
         } else {
-            self.resolved_models += usize::from(node.evidence.is_exact());
-            self.frozen.push(node);
+            self.opaque.push(node);
         }
     }
 
@@ -319,11 +410,7 @@ impl SparseDfaAnytime {
         };
 
         for region in parent.node.region.refine() {
-            self.push(node(
-                region,
-                &self.data,
-                self.unresolved_ln_likelihood_upper,
-            ));
+            self.push(node(region, &self.data, &self.suffix_upper));
         }
         self.steps += 1;
         true
@@ -338,12 +425,18 @@ impl SparseDfaAnytime {
     }
 
     pub fn bounds(&self) -> LogEvidenceBounds {
-        aggregate_evidence(
-            self.work
-                .iter()
-                .map(|item| &item.node.evidence)
-                .chain(self.frozen.iter().map(|node| &node.evidence)),
-        )
+        let mut lower = self.resolved_ln_mass;
+        let mut upper = self.resolved_ln_mass;
+        for bound in self
+            .work
+            .iter()
+            .map(|item| &item.node.evidence)
+            .chain(self.opaque.iter().map(|node| &node.evidence))
+        {
+            lower = log_add_exp(lower, bound.ln_lower());
+            upper = log_add_exp(upper, bound.ln_upper());
+        }
+        LogEvidenceBounds::new_internal(lower, upper)
     }
 
     pub fn steps(&self) -> usize {
@@ -351,11 +444,11 @@ impl SparseDfaAnytime {
     }
 
     pub fn regions(&self) -> usize {
-        self.work.len() + self.frozen.len()
+        self.work.len() + self.opaque.len()
     }
 
-    pub fn resolved_models(&self) -> usize {
-        self.resolved_models
+    pub fn resolved_regions(&self) -> usize {
+        self.resolved_regions
     }
 }
 
@@ -366,7 +459,7 @@ mod tests {
     #[test]
     fn universal_bound_dominates_fixed_dfas() {
         let data = b"<mediawi";
-        let upper = universal_ln_likelihood_upper(data);
+        let upper = universal_suffix_upper(data)[0];
         for topology in DefaultTopology::ALL {
             let model = SparseDfa::empty(4, topology).unwrap();
             assert!(model.ln_evidence(data) <= upper + 1e-12);
@@ -385,7 +478,7 @@ mod tests {
             assert!(current.ln_upper() <= previous.ln_upper() + 1e-12);
             previous = current;
         }
-        assert!(search.resolved_models() > 0);
+        assert!(search.resolved_regions() > 0);
     }
 
     #[test]
