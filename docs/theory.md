@@ -6,24 +6,49 @@ Can a finite compute budget be allocated across small program hypotheses so that
 
 The agreed starting point is tiny finite-state objects rather than a literal VM. The longer-term computation ladder is finite automata → stack-augmented machines → a Turing-complete family. Those later stages are research directions, not delivered capabilities.
 
-## Bayesian mixture and description length
+## Bayesian mixture, prequential coding, and description priors
 
-For a prefix-free binary description of program `p`, let `L(p)` be its length in bits. The Kraft inequality gives `sum_p 2^{-L(p)} <= 1`. A finite experiment may normalize these masses over its declared model family; that conditional prior is not the full unbounded prior.
-
-For an observed sequence `x_1:t`, define
+The canonical coding objective is defined in [prequential.md](prequential.md). KRAFT's score is the causal Bayesian-mixture prequential cost
 
 ```math
-u_t(p)=2^{-L(p)}\prod_{i=1}^{t}P_p(x_i\mid x_{<i}),\qquad
-C_t(p)=L(p)\ln 2-\sum_{i=1}^{t}\ln P_p(x_i\mid x_{<i}).
+C_{\mathrm{KRAFT}}(x_{1:T})
+=
+-\sum_{t=1}^{T}\ln M(x_t\mid x_{<t})
+=
+-\ln M(x_{1:T}),
 ```
 
-Thus `u_t(p) = exp(-C_t(p))`. Normalize `u_t` for posterior weights. Before observing the next symbol, predict
+with
 
 ```math
-P(x_{t+1}\mid x_{1:t})=\sum_p w_t(p)P_p(x_{t+1}\mid x_{1:t}).
+M(x)=\sum_p \pi(p)P_p(x).
 ```
 
-The implementation stores natural-log weights. Report coding loss in bits by dividing natural-log loss by `ln 2`. A parameterized family must specify a proper parameter prior or code, not only a transition-table code.
+For a prefix-free binary description of program `p`, a natural prior is proportional to `2^{-L(p)}`; the Kraft inequality ensures the code masses can form a subprobability distribution and a complete declared language must specify how the remaining mass is handled. Parameterized families likewise require a proper prior or exact marginalization rule.
+
+The description prior is part of the shared Bayesian learner, not an extra model file transmitted after training. Encoder and decoder start from the same prior and reweight it causally from the decoded prefix. For any fixed description `p`,
+
+```math
+M(x)\ge \pi(p)P_p(x)
+```
+
+and therefore
+
+```math
+C_{\mathrm{KRAFT}}(x)
+\le
+-\ln P_p(x)-\ln\pi(p).
+```
+
+The right side is a single-hypothesis MDL-style upper bound on the mixture cost. When one posterior mode dominates, the Bayesian soft minimum approaches this description-plus-data value. The model-identification penalty is paid implicitly as early predictive regret, not as a separate transmitted model.
+
+For an observed prefix, the unnormalized posterior contribution of description `p` is
+
+```math
+u_t(p)=\pi(p)\prod_{i=1}^{t}P_p(x_i\mid x_{<i}),
+```
+
+and the next-symbol predictor posterior-weights the fixed-model predictions. Search and scheduling may approximate this mixture, but they must not alter the declared prior or use future observations to choose the probability assigned to the current symbol.
 
 ## Compute weighting and the apparent log-base knob
 
@@ -178,7 +203,7 @@ For a complete labeled `N`-state transition table, the ideal negative-log prior 
 L(N,\delta)=N+256N\log_2N\quad\text{bits}.
 ```
 
-The first term is the unary state-count code. The second is the conditional transition-table code. This cost is not a claim that a literal table is the best way to describe structured DFAs; later KRAFT priors can add short program descriptions for transition functions such as shift registers, latches, counters, or generated automata and Bayesian-mix them with the literal-table family.
+The first term is the unary state-count code. The second is the conditional transition-table code. This is a negative-log **prior diagnostic**, not an extra payload added after prequential coding. It enters the Bayesian mixture through the prior and yields a single-model upper bound when combined with a fixed model's prequential evidence. It is also not a claim that a literal table is the best way to describe structured DFAs; later KRAFT priors can add short program descriptions for transition functions such as shift registers, latches, counters, or generated automata and Bayesian-mix them with the literal-table family.
 
 ## Sparse default-topology DFAs
 
@@ -275,15 +300,17 @@ For N=1, only K=0 exists.
 
 ### Search versus Bayesian model
 
-The family prior above is exact. The current sparse-dfa-fit binary performs heuristic MAP search in this family rather than summing the full posterior. This distinction is explicit.
+The family prior above is exact. The current `sparse-dfa-fit` binary is **not** the KRAFT codec: it performs heuristic hindsight search over a finite researcher-selected subset and uses the whole scoring corpus to choose candidate structures.
 
-Any searched candidate h still gives a rigorous bound on the full Bayesian sparse-DFA mixture:
+For a fixed prespecified DFA `h`, its integrated Dirichlet evidence equals its causal prequential probability, so `-\ln P_h(x)` is a valid fixed-model coding cost. If `h` is selected after inspecting the whole corpus, however, that same number is only an **oracle/hindsight diagnostic** for the discovered structure.
+
+Any searched candidate still gives a rigorous upper bound on the full Bayesian sparse-DFA mixture:
 
 ```math
 P_{\mathrm{mix}}(x)\ge P(h)P_h(x),
 ```
 
-so
+hence
 
 ```math
 C_{\mathrm{mix}}(x)
@@ -291,4 +318,6 @@ C_{\mathrm{mix}}(x)
 C_h(x)-\ln P(h).
 ```
 
-Search quality controls how tight this bound is; it does not affect its validity.
+The prior term is not separately transmitted by the eventual Bayesian codec; it appears here only because one candidate lower-bounds the mixture probability. Search quality controls how tight this certificate is.
+
+The planned rewrite replaces candidate deletion and semantic cutoffs such as maximum `N` or `K` with an anytime frontier of unresolved Bayesian mass. The online version must produce each symbol probability using only the already decoded prefix and the declared compute policy.
