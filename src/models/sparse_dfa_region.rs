@@ -10,6 +10,10 @@ impl StateCount {
         &self.0
     }
 
+    pub fn to_u16(&self) -> Option<u16> {
+        self.0.to_u64()?.try_into().ok()
+    }
+
     fn exception_normalizer(&self) -> PositiveNat {
         if self.0.is_one() {
             PositiveNat::one()
@@ -91,6 +95,20 @@ impl PriorRegion for TopologyChoice {
 pub struct ExceptionCount {
     topology: TopologyChoice,
     plus_one: PositiveNat,
+}
+
+impl ExceptionCount {
+    pub fn topology(&self) -> &TopologyChoice {
+        &self.topology
+    }
+
+    pub fn to_u32(&self) -> Option<u32> {
+        if self.plus_one.is_one() {
+            Some(0)
+        } else {
+            self.plus_one.predecessor()?.to_u64()?.try_into().ok()
+        }
+    }
 }
 
 impl PriorRegion for ExceptionCount {
