@@ -65,3 +65,17 @@ Use `evaluate(reader, &mut model)` for totals only. Pass `Read::take(limit)` to 
 Correctness checks cover analytic uniform and unigram sequence probabilities, normalization, strict call ordering, borrowed predictions, raw bytes/UTF-8, prefix limits, continued state, empty input, zero probability, invalid probability values, and I/O failure propagation. Optimized joint-evidence shortcuts for structured models must additionally regress against a literal `predict -> score -> observe` implementation. CLI smoke checks exercise prefix limits and refusal to overwrite files.
 
 The user has supplied two unigram runs on the first million bytes of local enwik8; see the [B1 record](experiments/B1-enwik8-baseline.md) for the results and missing metadata. No corpus run was performed in the agent environment. Record the code revision, exact input name/hash, command, evaluated prefix length, model, compiler/hardware, and output for subsequent benchmarks. The CLI currently prints a plain-text summary; automatic manifests, dataset hashing, and experiment tracking remain future runner work.
+
+## Sparse-DFA anytime certificate experiment
+
+The rewrite has a runnable certificate engine for the full declared sparse-DFA prior:
+
+```bash
+cargo run --release --locked --bin sparse-dfa-anytime -- \
+  path/to/enwik8 \
+  --limit 8 \
+  --steps 10000 \
+  --report-every 1000
+```
+
+It reports lower/upper bounds on the exact Bayesian mixture prequential cost of the supplied prefix. The current unresolved-region likelihood upper bound is deliberately conservative, so start with short prefixes while validating refinement behavior. This binary is not yet the bounded-compute streaming codec: it certifies the exact target `-ln M(prefix)` after seeing the prefix rather than emitting an approximate causal probability before each byte.
