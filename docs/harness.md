@@ -1,6 +1,6 @@
 # Byte coding harness
 
-The first benchmark objective is total prequential coding cost on a local text file. The user requested WikiText; the supplied local paths identify enwik8/enwik9. These names must remain distinct in result records. The harness accepts either as raw bytes and does not fetch datasets.
+The benchmark objective is total causal prequential coding cost on a local text file. See [prequential.md](prequential.md) for the canonical distinction between a fixed-model score, a hindsight/oracle score, and KRAFT's Bayesian-mixture score. The user requested WikiText; the supplied local paths identify enwik8/enwik9. These names must remain distinct in result records. The harness accepts either as raw bytes and does not fetch datasets.
 
 ## Interface
 
@@ -17,7 +17,7 @@ pub trait Model<T> {
 
 The traits are generic; file evaluation requires `Model<u8>`. A prediction may borrow the model. For each byte the harness calls `predict`, evaluates `ln_prob`, drops the prediction, records the cost, then calls `observe`. There is no update before scoring, tokenization, UTF-8 decoding, newline normalization, BOS/EOS insertion, warm-up exclusion, or implicit reset. Invalid UTF-8 bytes are valid observations too. File order and bytes define the benchmark.
 
-The primary objective is `sum_t -ln P(x_t | x_<t)`, in nats. The report also converts to total bits and reports the coding ratio against uniform, defined as `uniform_cost / model_cost`. Higher is better: uniform is 1, values above 1 beat uniform, and values below 1 are worse. Because it is a ratio of coding costs, the value is invariant to log base. Against uniform it is the ideal compression ratio for the fixed byte stream. All bytes, including the first, are scored. This is ideal coding length, not an actual compressed-file size; no arithmetic coder or EOF/length encoding is implemented.
+The primary objective is `sum_t -ln P(x_t | x_<t)`, in nats. For KRAFT itself, `P` must be the online Bayesian-mixture prediction produced from the decoded prefix and the declared inference policy. A fixed structure selected using future bytes may be analyzed with the same evaluator, but that result is an oracle diagnostic rather than KRAFT's prequential coding cost. The report also converts to total bits and reports the coding ratio against uniform, defined as `uniform_cost / model_cost`. Higher is better: uniform is 1, values above 1 beat uniform, and values below 1 are worse. Because it is a ratio of coding costs, the value is invariant to log base. Against uniform it is the ideal compression ratio for the fixed byte stream. All bytes, including the first, are scored. This is ideal coding length, not an actual compressed-file size; no arithmetic coder or EOF/length encoding is implemented.
 
 ## Run
 
@@ -62,6 +62,6 @@ Use `evaluate(reader, &mut model)` for totals only. Pass `Read::take(limit)` to 
 
 ## Evidence and next run
 
-Correctness checks cover analytic uniform and unigram sequence probabilities, normalization, strict call ordering, borrowed predictions, raw bytes/UTF-8, prefix limits, continued state, empty input, zero probability, invalid probability values, and I/O failure propagation. CLI smoke checks exercise prefix limits and refusal to overwrite files.
+Correctness checks cover analytic uniform and unigram sequence probabilities, normalization, strict call ordering, borrowed predictions, raw bytes/UTF-8, prefix limits, continued state, empty input, zero probability, invalid probability values, and I/O failure propagation. Optimized joint-evidence shortcuts for structured models must additionally regress against a literal `predict -> score -> observe` implementation. CLI smoke checks exercise prefix limits and refusal to overwrite files.
 
 The user has supplied two unigram runs on the first million bytes of local enwik8; see the [B1 record](experiments/B1-enwik8-baseline.md) for the results and missing metadata. No corpus run was performed in the agent environment. Record the code revision, exact input name/hash, command, evaluated prefix length, model, compiler/hardware, and output for subsequent benchmarks. The CLI currently prints a plain-text summary; automatic manifests, dataset hashing, and experiment tracking remain future runner work.
