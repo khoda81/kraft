@@ -115,3 +115,11 @@ The discussion explored Bayesian mixtures over programs, allocating compute acco
 - Added `SparseDfaLearner`, a literal online `predict -> score -> observe` implementation, and a regression test requiring the optimized integrated-evidence scorer to match it for prespecified DFAs.
 - Renamed sparse search outputs to explicitly identify hindsight/oracle data costs and single-model mixture bounds.
 - Added the first generic anytime primitives: prior regions, log evidence bounds, frontier nodes, and `Partition` / `Tighten` / `Resolve` refinements. No scheduler is part of these semantics.
+
+## 2026-09-07 — Unbounded state-count region
+
+- Added `PositiveNat`, backed by `num-bigint::BigUint`, so structural naturals are not capped by machine integer width. Zero is excluded by the public construction API.
+- Added `StateCount` and `StateCountTail`; the root tail denotes all `N>=1` under `P(N)=1/[N(N+1)]`, and `split()` produces exact `N=n` plus the remaining `N>=n+1` tail.
+- Tests verify telescoping mass conservation over repeated splits and explicitly cross the `u64` boundary.
+- Simplified `anytime.rs` by removing internal defensive bound-validation machinery; arbitrary bound pairs are no longer publicly constructed.
+- Recorded the rewrite style rule: compact code, invariants by construction, defensive validation at external boundaries.
