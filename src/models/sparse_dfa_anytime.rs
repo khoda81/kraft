@@ -210,31 +210,57 @@ impl SparseRegion {
     }
 }
 
-fn node(region: SparseRegion, data: &[u8]) -> FrontierNode<SparseRegion> {
+fn universal_ln_likelihood_upper(data: &[u8]) -> f64 {
+    let mut counts = [0_u64; 256];
+    data.iter()
+        .map(|&byte| {
+            let count = counts[usize::from(byte)];
+            counts[usize::from(byte)] += 1;
+            ((count as f64 + 0.5) / (count as f64 + 128.0)).ln()
+        })
+        .sum()
+}
+
+fn node(
+    region: SparseRegion,
+    data: &[u8],
+    unresolved_ln_likelihood_upper: f64,
+) -> FrontierNode<SparseRegion> {
     let evidence = match &region {
         SparseRegion::Concrete(model) => {
             LogEvidenceBounds::exact(model.ln_prior() + model.ln_evidence(data))
         }
-        _ => LogEvidenceBounds::unresolved(region.ln_prior_mass()),
+        _ => LogEvidenceBounds::unresolved(
+            region.ln_prior_mass() + unresolved_ln_likelihood_upper,
+        ),
     };
     FrontierNode { region, evidence }
 }
 
 #[derive(Debug, Clone)]
 pub struct SparseDfaAnytime {
+    data: Vec<u8>,
     frontier: Vec<FrontierNode<SparseRegion>>,
+    unresolved_ln_likelihood_upper: f64,
     steps: usize,
 }
 
 impl SparseDfaAnytime {
-    pub fn new() -> Self {
+    pub fn new(data: &[u8]) -> Self {
+        let unresolved_ln_likelihood_upper = universal_ln_likelihood_upper(data);
         Self {
-            frontier: vec![node(SparseRegion::StatesTail(StateCountTail::root()), &[])],
+            data: data.to_vec(),
+            frontier: vec![node(
+                SparseRegion::StatesTail(StateCountTail::root()),
+                data,
+                unresolved_ln_likelihood_upper,
+            )],
+            unresolved_ln_likelihood_upper,
             steps: 0,
         }
     }
 
-    pub fn step(&mut self, data: &[u8]) -> bool {
+    pub fn step(&mut self) -> bool {
         let Some(index) = self
             .frontier
             .iter()
@@ -252,15 +278,21 @@ impl SparseDfaAnytime {
                 .region
                 .refine()
                 .into_iter()
-                .map(|region| node(region, data)),
+                .map(|region| {
+                    node(
+                        region,
+                        &self.data,
+                        self.unresolved_ln_likelihood_upper,
+                    )
+                }),
         );
         self.steps += 1;
         true
     }
 
-    pub fn run(&mut self, data: &[u8], steps: usize) {
+    pub fn run(&mut self, steps: usize) {
         for _ in 0..steps {
-            if !self.step(data) {
+            if !self.step() {
                 break;
             }
         }
@@ -286,12 +318,6 @@ impl SparseDfaAnytime {
     }
 }
 
-impl Default for SparseDfaAnytime {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,10 +325,10 @@ mod tests {
     #[test]
     fn evidence_interval_tightens_monotonically() {
         let data = b"aba";
-        let mut search = SparseDfaAnytime::new();
+        let mut search = SparseDfaAnytime::new(data);
         let mut previous = search.bounds();
         for _ in 0..2000 {
-            search.step(data);
+            search.step();
             let current = search.bounds();
             assert!(current.ln_lower() + 1e-12 >= previous.ln_lower());
             assert!(current.ln_upper() <= previous.ln_upper() + 1e-12);
@@ -313,9 +339,9 @@ mod tests {
 
     #[test]
     fn empty_sequence_keeps_unit_evidence_upper_bound() {
-        let mut search = SparseDfaAnytime::new();
+        let mut search = SparseDfaAnytime::new(&[]);
         for _ in 0..1000 {
-            search.step(&[]);
+            search.step();
             assert!(search.bounds().ln_upper().abs() < 1e-12);
         }
     }
