@@ -14,6 +14,14 @@ impl StateCount {
         &self.0
     }
 
+    fn exception_normalizer(&self) -> PositiveNat {
+        if self.0.is_one() {
+            PositiveNat::one()
+        } else {
+            self.0.shifted(8).successor()
+        }
+    }
+
     pub fn partition_topologies(&self) -> [TopologyChoice; 3] {
         DefaultTopology::ALL.map(|topology| TopologyChoice {
             states: self.clone(),
@@ -69,23 +77,10 @@ impl TopologyChoice {
     }
 
     pub fn exception_counts(&self) -> ExceptionCountTail {
-        let normalizer = if self.states.0.predecessor().is_none() {
-            PositiveNat::one()
-        } else {
-            self.states.0.shifted(8).successor()
-        };
         ExceptionCountTail {
             topology: self.clone(),
             next: PositiveNat::one(),
-            remaining: normalizer,
-        }
-    }
-
-    fn exception_normalizer(&self) -> PositiveNat {
-        if self.states.0.predecessor().is_none() {
-            PositiveNat::one()
-        } else {
-            self.states.0.shifted(8).successor()
+            remaining: self.states.exception_normalizer(),
         }
     }
 }
@@ -104,7 +99,7 @@ pub struct ExceptionCount {
 
 impl PriorRegion for ExceptionCount {
     fn ln_prior_mass(&self) -> f64 {
-        let normalizer = self.topology.exception_normalizer();
+        let normalizer = self.topology.states.exception_normalizer();
         self.topology.ln_prior_mass()
             + normalizer.successor().ln()
             - normalizer.ln()
@@ -139,7 +134,7 @@ impl PriorRegion for ExceptionCountTail {
     fn ln_prior_mass(&self) -> f64 {
         self.topology.ln_prior_mass() + self.remaining.ln()
             - self.next.ln()
-            - self.topology.exception_normalizer().ln()
+            - self.topology.states.exception_normalizer().ln()
     }
 }
 
