@@ -29,7 +29,7 @@ cargo clippy --locked --all-targets --all-features -- -D warnings
 python3 scripts/check_docs.py
 ```
 
-The crate remains dependency-free. Run `cargo run --release -- path/to/enwik8 --limit 1000000` to score a million-byte prefix. See the [harness guide](docs/harness.md) for models and per-byte costs. Planned model/search components and GPU considerations are in [architecture](docs/architecture.md). [Contributing](CONTRIBUTING.md) describes how to preserve research context.
+Run `cargo run --release -- eval kt path/to/enwik8 --limit 1000000` to score a million-byte prefix. Omit the input path (or use `-`) to read raw bytes from stdin. See the [harness guide](docs/harness.md) for models and per-byte costs. Planned model/search components and GPU considerations are in [architecture](docs/architecture.md). [Contributing](CONTRIBUTING.md) describes how to preserve research context.
 
 ## Repository layout
 

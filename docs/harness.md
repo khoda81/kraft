@@ -21,17 +21,26 @@ The primary objective is `sum_t -ln P(x_t | x_<t)`, in nats. For KRAFT itself, `
 
 ## Run
 
+KRAFT has one executable with `eval`, `infer`, `search`, and `verify` command groups. Input is the optional positional argument immediately after the model/family name. If it is omitted, or is `-`, KRAFT reads raw bytes from stdin.
+
 From the repository root, after `git pull --ff-only`:
 
 ```sh
-cargo run --release -- ../text-preq-encoding/preq-encoding/data/enwik/enwik8 --limit 1000000
+cargo run --release -- eval kt ../text-preq-encoding/preq-encoding/data/enwik/enwik8 --limit 1000000
 ```
 
-Remove `--limit` to evaluate the full file. Use `--model uniform` for the eight-bits-per-byte sanity baseline; default `kt` is an adaptive byte unigram with a symmetric Dirichlet-1/2 prior over all 256 byte values. It starts uniform and predicts `(count[byte] + 1/2) / (observed_bytes + 128)`. Both baselines are deterministic and start fresh in each CLI invocation.
+The same run can be piped without naming an input file:
+
+```sh
+head -c 1000000 ../text-preq-encoding/preq-encoding/data/enwik/enwik8 |
+  cargo run --release -- eval kt
+```
+
+Remove `--limit` to evaluate the full stream. Use `eval uniform` for the uniform sanity baseline; `eval kt` is an adaptive byte unigram with a symmetric Dirichlet-1/2 prior over all 256 byte values. It starts uniform and predicts `(count[byte] + 1/2) / (observed_bytes + 128)`. Both baselines are deterministic and start fresh in each CLI invocation.
 
 ```sh
 mkdir -p artifacts/enwik8
-cargo run --release -- path/to/enwik8 --model kt --costs artifacts/enwik8/costs.csv
+cargo run --release -- eval kt path/to/enwik8 --costs artifacts/enwik8/costs.csv
 ```
 
 `--costs` writes `byte_offset,cost_nats` rows with zero-based offsets. It creates a new file and refuses to overwrite an existing path, including the dataset itself. The parent directory must exist. Per-byte text output can be large and slow; leave it off when only the total is needed. Errors return nonzero; any already-written cost file is partial and must not be treated as a completed run.
@@ -71,21 +80,21 @@ The user has supplied two unigram runs on the first million bytes of local enwik
 The rewrite has a runnable certificate engine for the full declared sparse-DFA prior:
 
 ```bash
-cargo run --release --locked --bin sparse-dfa-anytime -- \
+cargo run --release --locked -- infer sparse-dfa \
   path/to/enwik8 \
   --limit 8 \
   --steps 10000 \
   --report-every 1000
 ```
 
-It reports lower/upper bounds on the exact Bayesian mixture prequential cost of the supplied prefix. The current unresolved-region likelihood upper bound is deliberately conservative, so start with short prefixes while validating refinement behavior. This binary is not yet the bounded-compute streaming codec: it certifies the exact target `-ln M(prefix)` after seeing the prefix rather than emitting an approximate causal probability before each byte.
+It reports lower/upper bounds on the exact Bayesian mixture prequential cost of the supplied prefix. The current unresolved-region likelihood upper bound is deliberately conservative, so start with short prefixes while validating refinement behavior. This command is not yet the bounded-compute streaming codec: it certifies the exact target `-ln M(prefix)` after seeing the prefix rather than emitting an approximate causal probability before each byte.
 
 ## Anytime convergence diagnostics
 
 Run the same prefix and budget with detailed reporting:
 
 ```sh
-cargo run --release --locked --bin sparse-dfa-anytime -- \
+cargo run --release --locked -- infer sparse-dfa \
   ../text-preq-encoding/preq-encoding/data/enwik/enwik8 \
   --limit 1000 --steps 100000 --report-every 1000 --diagnostics
 ```
@@ -103,7 +112,7 @@ A separate table format replaces the old compact interval columns. The command s
 ## Causal generated-state partition posterior
 
 ```sh
-cargo run --release --locked --bin partition-dfa -- \
+cargo run --release --locked -- eval partition-dfa \
   ../text-preq-encoding/preq-encoding/data/enwik/enwik8 --limit 1000000 --depth 8
 ```
 
