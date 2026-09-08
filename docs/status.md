@@ -44,3 +44,9 @@ Ordinary n-grams are finite-state models, but the current sparse transition-desc
 - How to extend the transition description language without special-casing n-grams.
 - Description-level versus semantic/function-level prior aggregation.
 - License selection.
+
+### Data-directed sparse trajectory refinement
+
+The sparse anytime engine no longer enumerates override keys in lexicographic description order. For fixed `N`, topology, and `K`, untouched keys are exchangeable under the uniform `K`-subset prior. The region stores only remaining keys, remaining overrides, and assignments for keys actually queried by the observed trajectory. When the prefix first reaches an undecided `(state, byte)` key, the exact conditional split is `(r-k)/r` for default and `k/r` for override; destination choice is refined only on the override branch.
+
+This is exact Rao-Blackwellization / trajectory weighted model counting: all unqueried key identities and destinations remain analytically marginalized. Likelihood-bound evaluation was also reduced from quadratic prefix rescanning to linear-time sparse emission counts. Concrete DFA leaves are no longer part of this certificate path; when every transition queried by the prefix is forced, the entire remaining completion region is resolved symbolically.
