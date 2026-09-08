@@ -9,7 +9,7 @@ Updated: 2026-09-07. Work from the first unblocked item. Historical experiment r
 - [x] A0 — Define prior-mass-preserving sparse-DFA regions through state count, topology, exception count, key subsets, destinations, and concrete leaves.
 - [ ] A1 — A minimal sparse-DFA frontier is now runnable and maintains global evidence bounds; generalize/refactor only after the concrete experiment shows what the reusable frontier API actually needs.
 - [x] A2 — Add a literal online sparse-DFA learner implementing `Model<u8>` and regression-test the current closed-form `SparseDfa::score()` evidence against `predict -> score -> observe` on fixed structures.
-- [ ] A3 — Concrete leaves and partial key/destination regions now have rigorous prefix/suffix evidence bounds, including exact symbolic resolution when unresolved structure is irrelevant to the observed prefix. Add chunked causal replay/tightening for long streams.
+- [ ] A3 — Sparse key/destination inference is now data-directed and analytically marginalizes all unqueried transitions; likelihood bounds are linear in prefix length. Next evaluate convergence on longer prefixes, then marginalize `K` itself or add replay/chunking if it remains dominant.
 - [ ] A4 — Add checkpoint/resume for the actual frontier rather than only winner/progress TSVs.
 
 ## Next
