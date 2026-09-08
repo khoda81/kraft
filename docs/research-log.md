@@ -151,3 +151,12 @@ The discussion explored Bayesian mixtures over programs, allocating compute acco
 - Exact resolved region masses are accumulated into one scalar rather than retained as frontier objects.
 - Added an exhaustive `N=2`, stay, `K=1` regression: an unresolved partial-region upper bound contains the exact sum over its concrete completions, and after all observed keys are fixed irrelevant the symbolic region mass equals the exhaustive sum.
 - Fixed and regression-tested an off-by-one in the universal suffix table discovered during this change.
+
+## 2026-09-08 — Data-directed sparse trajectory WMC
+
+- The 1000-byte certificate barely moved under description-order refinement, motivating a change of search variable rather than more scheduler tuning.
+- Replaced lexicographic key-set enumeration with data-directed branching: for `r` undecided keys and `k` remaining overrides, the next trajectory-requested key branches with exact prior masses `(r-k)/r` (default) and `k/r` (override).
+- Unqueried keys are never materialized. Their combinatorial subset mass is marginalized exactly; non-queried override destinations integrate out as well.
+- Removed concrete sparse-DFA leaves and the trusted internal constructor from the anytime path. Once all transitions relevant to the observed prefix are determined, the whole completion region is resolved exactly as one joint mass.
+- Replaced quadratic prefix rescanning for Dirichlet state counts with linear-time sparse hash-map counts.
+- Changed compact range formatting to adapt precision to interval width, so tightening certificates reveal additional decimals automatically.
