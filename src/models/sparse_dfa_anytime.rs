@@ -21,136 +21,158 @@ struct Shape {
 #[derive(Debug, Clone, PartialEq)]
 struct KeySetRegion {
     shape: Shape,
-    next: u32,
     remaining: u32,
     needed: u32,
-    chosen: Vec<u32>,
+    assignments: Vec<(u32, u16)>,
     ln_prior_mass: f64,
 }
 
 impl KeySetRegion {
     fn new(count: &ExceptionCount) -> Option<Self> {
         let states = count.topology().states().to_u16()?;
-        let needed = count.to_u32()?;
-        let remaining = if states == 1 {
-            0
-        } else {
-            u32::from(states) << 8
-        };
         Some(Self {
             shape: Shape {
                 states,
                 topology: count.topology().topology(),
             },
-            next: 0,
-            remaining,
-            needed,
-            chosen: Vec::new(),
+            remaining: if states == 1 {
+                0
+            } else {
+                u32::from(states) << 8
+            },
+            needed: count.to_u32()?,
+            assignments: Vec::new(),
             ln_prior_mass: count.ln_prior_mass(),
         })
     }
 
-    fn refine(mut self) -> Vec<SparseRegion> {
-        if self.needed == 0 {
-            return vec![destinations(self.shape, self.chosen, self.ln_prior_mass)];
+    fn destination(&self, state: u16, byte: u8) -> Option<u16> {
+        let key = (u32::from(state) << 8) | u32::from(byte);
+        let default = self
+            .shape
+            .topology
+            .default_destination(state, self.shape.states);
+        match self.assignments.binary_search_by_key(&key, |&(key, _)| key) {
+            Ok(index) => Some(self.assignments[index].1),
+            Err(_) if self.needed == 0 => Some(default),
+            Err(_) if self.needed == self.remaining && self.shape.states == 2 => {
+                Some(1 - default)
+            }
+            Err(_) => None,
         }
-        if self.needed == self.remaining {
-            self.chosen.extend(self.next..self.next + self.remaining);
-            return vec![destinations(self.shape, self.chosen, self.ln_prior_mass)];
+    }
+
+    fn first_ambiguous(&self, data: &[u8]) -> Option<(u16, u8)> {
+        let mut state = 0_u16;
+        for &byte in data.iter().take(data.len().saturating_sub(1)) {
+            let Some(next) = self.destination(state, byte) else {
+                return Some((state, byte));
+            };
+            state = next;
+        }
+        None
+    }
+
+    fn assign(&mut self, key: u32, destination: u16) {
+        let index = self
+            .assignments
+            .binary_search_by_key(&key, |&(key, _)| key)
+            .unwrap_err();
+        self.assignments.insert(index, (key, destination));
+    }
+
+    fn refine(mut self, data: &[u8]) -> Vec<SparseRegion> {
+        let Some((state, byte)) = self.first_ambiguous(data) else {
+            return Vec::new();
+        };
+        let key = (u32::from(state) << 8) | u32::from(byte);
+        let default = self
+            .shape
+            .topology
+            .default_destination(state, self.shape.states);
+        let remaining = self.remaining as f64;
+        let needed = self.needed;
+
+        let mut children = Vec::new();
+        if needed < self.remaining {
+            let mut default_branch = self.clone();
+            default_branch.ln_prior_mass += ((self.remaining - needed) as f64 / remaining).ln();
+            default_branch.remaining -= 1;
+            default_branch.assign(key, default);
+            children.push(SparseRegion::Keys(default_branch));
         }
 
-        let ln_remaining = (self.remaining as f64).ln();
-        let mut include = self.clone();
-        include.chosen.push(self.next);
-        include.next += 1;
-        include.remaining -= 1;
-        include.needed -= 1;
-        include.ln_prior_mass += (self.needed as f64).ln() - ln_remaining;
-
-        self.next += 1;
-        self.remaining -= 1;
-        self.ln_prior_mass += ((self.remaining + 1 - self.needed) as f64).ln() - ln_remaining;
-        vec![SparseRegion::Keys(include), SparseRegion::Keys(self)]
+        if needed > 0 {
+            self.ln_prior_mass += (needed as f64 / remaining).ln();
+            self.remaining -= 1;
+            self.needed -= 1;
+            if self.shape.states == 2 {
+                self.assign(key, 1 - default);
+                children.push(SparseRegion::Keys(self));
+            } else {
+                children.push(SparseRegion::Destination(DestinationRegion {
+                    keys: self,
+                    key,
+                    start: 0,
+                    end: self.shape.states - 1,
+                }));
+            }
+        }
+        children
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 struct DestinationRegion {
-    shape: Shape,
-    keys: Vec<u32>,
-    overrides: Vec<SparseOverride>,
-    index: usize,
+    keys: KeySetRegion,
+    key: u32,
     start: u16,
     end: u16,
-    ln_prior_mass: f64,
 }
 
 impl DestinationRegion {
+    fn ln_prior_mass(&self) -> f64 {
+        self.keys.ln_prior_mass
+            + ((self.end - self.start) as f64 / (self.keys.shape.states - 1) as f64).ln()
+    }
+
+    fn destination(&self, state: u16, byte: u8) -> Option<u16> {
+        let key = (u32::from(state) << 8) | u32::from(byte);
+        if key != self.key {
+            return self.keys.destination(state, byte);
+        }
+        (self.end - self.start == 1).then(|| {
+            let default = self
+                .keys
+                .shape
+                .topology
+                .default_destination(state, self.keys.shape.states);
+            if self.start < default {
+                self.start
+            } else {
+                self.start + 1
+            }
+        })
+    }
+
     fn refine(mut self) -> Vec<SparseRegion> {
-        let width = self.end - self.start;
-        if width > 1 {
-            let middle = self.start + width / 2;
+        if self.end - self.start > 1 {
+            let middle = self.start + (self.end - self.start) / 2;
             let mut left = self.clone();
             left.end = middle;
-            left.ln_prior_mass += ((middle - self.start) as f64 / width as f64).ln();
             self.start = middle;
-            self.ln_prior_mass += ((self.end - middle) as f64 / width as f64).ln();
             return vec![
-                SparseRegion::Destinations(left),
-                SparseRegion::Destinations(self),
+                SparseRegion::Destination(left),
+                SparseRegion::Destination(self),
             ];
         }
 
-        let key = self.keys[self.index];
-        let source = (key >> 8) as u16;
-        let byte = key as u8;
-        let default = self
-            .shape
-            .topology
-            .default_destination(source, self.shape.states);
-        let destination = if self.start < default {
-            self.start
-        } else {
-            self.start + 1
-        };
-        self.overrides.push(SparseOverride {
-            source,
-            byte,
-            destination,
-        });
-        self.index += 1;
-
-        if self.index == self.keys.len() {
-            vec![SparseRegion::Concrete(SparseDfa::from_valid_parts(
-                self.shape.states,
-                self.shape.topology,
-                self.overrides,
-            ))]
-        } else {
-            self.start = 0;
-            self.end = self.shape.states - 1;
-            vec![SparseRegion::Destinations(self)]
-        }
-    }
-}
-
-fn destinations(shape: Shape, keys: Vec<u32>, ln_prior_mass: f64) -> SparseRegion {
-    if keys.is_empty() {
-        SparseRegion::Concrete(SparseDfa::from_valid_parts(
-            shape.states,
-            shape.topology,
-            Vec::new(),
-        ))
-    } else {
-        SparseRegion::Destinations(DestinationRegion {
-            shape,
-            keys,
-            overrides: Vec::new(),
-            index: 0,
-            start: 0,
-            end: shape.states - 1,
-            ln_prior_mass,
-        })
+        let source = (self.key >> 8) as u16;
+        let byte = self.key as u8;
+        let destination = self.destination(source, byte).unwrap();
+        self.keys.ln_prior_mass = self.ln_prior_mass();
+        self.keys.assign(self.key, destination);
+        vec![SparseRegion::Keys(self.keys)]
     }
 }
 
@@ -162,7 +184,7 @@ enum SparseRegion {
     ExceptionTail(ExceptionCountTail),
     Opaque(ExceptionCount),
     Keys(KeySetRegion),
-    Destinations(DestinationRegion),
+    Destination(DestinationRegion),
     Concrete(SparseDfa),
 }
 
@@ -175,7 +197,7 @@ impl PriorRegion for SparseRegion {
             Self::ExceptionTail(region) => region.ln_prior_mass(),
             Self::Opaque(region) => region.ln_prior_mass(),
             Self::Keys(region) => region.ln_prior_mass,
-            Self::Destinations(region) => region.ln_prior_mass,
+            Self::Destination(region) => region.ln_prior_mass(),
             Self::Concrete(model) => model.ln_prior(),
         }
     }
@@ -187,41 +209,8 @@ impl SparseRegion {
         match self {
             Self::States(region) if region.to_u16() == Some(1) => Some(0),
             Self::Topology(region) if region.states().to_u16() == Some(1) => Some(0),
-            Self::Keys(region) => {
-                let default = region
-                    .shape
-                    .topology
-                    .default_destination(state, region.shape.states);
-                let selected = region.chosen.binary_search(&key).is_ok()
-                    || (key >= region.next && region.needed == region.remaining);
-                if selected {
-                    (region.shape.states == 2).then_some(1 - default)
-                } else if key < region.next || region.needed == 0 {
-                    Some(default)
-                } else {
-                    None
-                }
-            }
-            Self::Destinations(region) => {
-                let default = region
-                    .shape
-                    .topology
-                    .default_destination(state, region.shape.states);
-                let Ok(index) = region.keys.binary_search(&key) else {
-                    return Some(default);
-                };
-                if index < region.index {
-                    return Some(region.overrides[index].destination);
-                }
-                if index == region.index && region.end - region.start == 1 {
-                    return Some(if region.start < default {
-                        region.start
-                    } else {
-                        region.start + 1
-                    });
-                }
-                None
-            }
+            Self::Keys(region) => region.destination(state, byte),
+            Self::Destination(region) => region.destination(state, byte),
             Self::Concrete(model) => Some(model.destination(state, byte)),
             _ => None,
         }
@@ -260,7 +249,7 @@ impl SparseRegion {
         !matches!(self, Self::Concrete(_) | Self::Opaque(_))
     }
 
-    fn refine(self) -> Vec<Self> {
+    fn refine(self, data: &[u8]) -> Vec<Self> {
         match self {
             Self::StatesTail(region) => {
                 let (exact, tail) = region.split();
@@ -279,8 +268,8 @@ impl SparseRegion {
                 children.extend(tail.map(Self::ExceptionTail));
                 children
             }
-            Self::Keys(region) => region.refine(),
-            Self::Destinations(region) => region.refine(),
+            Self::Keys(region) => region.refine(data),
+            Self::Destination(region) => region.refine(),
             Self::Concrete(_) | Self::Opaque(_) => Vec::new(),
         }
     }
@@ -402,7 +391,7 @@ impl SparseDfaAnytime {
             return false;
         };
 
-        for region in parent.node.region.refine() {
+        for region in parent.node.region.refine(&self.data) {
             self.push(node(region, &self.data, &self.suffix_upper));
         }
         self.steps += 1;
