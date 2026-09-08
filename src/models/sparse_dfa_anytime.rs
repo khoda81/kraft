@@ -110,11 +110,12 @@ impl KeySetRegion {
                 self.assign(key, 1 - default);
                 children.push(SparseRegion::Keys(self));
             } else {
+                let end = self.shape.states - 1;
                 children.push(SparseRegion::Destination(DestinationRegion {
                     keys: self,
                     key,
                     start: 0,
-                    end: self.shape.states - 1,
+                    end,
                 }));
             }
         }
@@ -205,7 +206,6 @@ impl PriorRegion for SparseRegion {
 
 impl SparseRegion {
     fn forced_destination(&self, state: u16, byte: u8) -> Option<u16> {
-        let key = (u32::from(state) << 8) | u32::from(byte);
         match self {
             Self::States(region) if region.to_u16() == Some(1) => Some(0),
             Self::Topology(region) if region.states().to_u16() == Some(1) => Some(0),
@@ -447,47 +447,61 @@ mod tests {
         KeySetRegion::new(&count).unwrap()
     }
 
-    fn exclude_prefix(mut region: KeySetRegion, count: usize) -> KeySetRegion {
-        for _ in 0..count {
-            region = match region.refine().pop().unwrap() {
-                SparseRegion::Keys(region) => region,
-                _ => unreachable!(),
-            };
-        }
-        region
+    fn exact_k1_mass(region: &KeySetRegion, data: &[u8]) -> f64 {
+        (0..512_u32)
+            .filter(|key| region.assignments.binary_search_by_key(key, |&(key, _)| key).is_err())
+            .fold(f64::NEG_INFINITY, |mass, key| {
+                let source = (key >> 8) as u16;
+                let byte = key as u8;
+                let model = SparseDfa::from_valid_parts(
+                    2,
+                    DefaultTopology::Stay,
+                    vec![SparseOverride {
+                        source,
+                        byte,
+                        destination: 1 - source,
+                    }],
+                );
+                log_add_exp(mass, model.ln_prior() + model.ln_evidence(data))
+            })
     }
 
-    fn exact_region_mass(region: &KeySetRegion, data: &[u8]) -> f64 {
-        (region.next..region.next + region.remaining).fold(f64::NEG_INFINITY, |mass, key| {
-            let source = (key >> 8) as u16;
-            let byte = key as u8;
-            let model = SparseDfa::from_valid_parts(
-                2,
-                DefaultTopology::Stay,
-                vec![SparseOverride {
-                    source,
-                    byte,
-                    destination: 1 - source,
-                }],
-            );
-            log_add_exp(mass, model.ln_prior() + model.ln_evidence(data))
-        })
+    fn default_child(region: KeySetRegion, data: &[u8]) -> KeySetRegion {
+        region
+            .refine(data)
+            .into_iter()
+            .find_map(|child| match child {
+                SparseRegion::Keys(region)
+                    if region.assignments.last().is_some_and(|&(key, destination)| {
+                        let source = (key >> 8) as u16;
+                        destination
+                            == region
+                                .shape
+                                .topology
+                                .default_destination(source, region.shape.states)
+                    }) =>
+                {
+                    Some(region)
+                }
+                _ => None,
+            })
+            .unwrap()
     }
 
     #[test]
-    fn partial_region_bound_contains_exhaustive_mass_and_resolves_when_irrelevant() {
+    fn data_directed_key_bound_contains_exhaustive_mass_and_resolves_irrelevant_tail() {
         let data = b"aba";
         let suffix = universal_suffix_upper(data);
 
-        let unresolved = exclude_prefix(n2_stay_k1_region(), 98);
-        let exact_mass = exact_region_mass(&unresolved, data);
-        let bound = node(SparseRegion::Keys(unresolved), data, &suffix).evidence;
+        let region = n2_stay_k1_region();
+        let exact_mass = exact_k1_mass(&region, data);
+        let bound = node(SparseRegion::Keys(region.clone()), data, &suffix).evidence;
         assert!(!bound.is_exact());
         assert!(exact_mass <= bound.ln_upper() + 1e-12);
 
-        let irrelevant = exclude_prefix(n2_stay_k1_region(), 99);
-        let exact_mass = exact_region_mass(&irrelevant, data);
-        let bound = node(SparseRegion::Keys(irrelevant), data, &suffix).evidence;
+        let region = default_child(default_child(region, data), data);
+        let exact_mass = exact_k1_mass(&region, data);
+        let bound = node(SparseRegion::Keys(region), data, &suffix).evidence;
         assert!(bound.is_exact());
         assert!((bound.ln_lower() - exact_mass).abs() < 1e-12);
     }
@@ -521,8 +535,7 @@ mod tests {
 
     #[test]
     fn evidence_interval_tightens_monotonically() {
-        let data = b"aba";
-        let mut search = SparseDfaAnytime::new(data);
+        let mut search = SparseDfaAnytime::new(b"aba");
         let mut previous = search.bounds();
         for _ in 0..2000 {
             search.step();
