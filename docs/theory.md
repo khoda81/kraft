@@ -321,3 +321,19 @@ C_h(x)-\ln P(h).
 The prior term is not separately transmitted by the eventual Bayesian codec; it appears here only because one candidate lower-bounds the mixture probability. Search quality controls how tight this certificate is.
 
 The planned rewrite replaces candidate deletion and semantic cutoffs such as maximum `N` or `K` with an anytime frontier of unresolved Bayesian mass. The online version must produce each symbol probability using only the already decoded prefix and the declared compute policy.
+
+### Current sparse anytime bound limitations
+
+The current trajectory bound uses exact emissions only until the first undecided transition, then substitutes the universal global-count bound for the suffix. The favorable local counts used by successive bound terms need not be jointly realizable by one deterministic machine. Validity therefore does not imply useful discrimination between regions. Partitioning a region into children with the same likelihood bound conserves its summed upper evidence and gives no immediate certificate improvement.
+
+For prefixes of at least two bytes, all descriptions with `N > 65535` retain the universal likelihood bound `B(x)`: they either remain in structural regions or become non-refinable opaque regions when trajectory construction exceeds `u16`. Their total prior mass is `1/65536`. Consequently the evidence upper bound remains at least `B(x)/65536`, and the coding-cost lower endpoint cannot exceed `-ln B(x) + ln(65536)`. For the audit's quoted `-ln B(x) = 2380.761`, this ceiling is approximately `2391.851355889` nats; this is a conditional calculation, not a reproduced run or an estimate of the true mixture cost. Empty and one-byte prefixes resolve exactly before trajectory construction.
+
+Widening a state identifier only moves this obstruction. Arbitrarily tight convergence requires reasoning that can tighten or resolve large-state regions symbolically. The implementation evaluates mathematically valid bounds in ordinary floating-point arithmetic, without directed rounding or a numerical error envelope; its reported intervals are not rigorous numerical enclosures.
+
+## Generated DFA states with Bayesian emission partitions
+
+The first implemented generated-state extension uses a deterministic finite-state program whose state is expressed as a fixed-length vector of finite features. A hierarchical prefix partition groups full states for emission parameter sharing. At each internal node, the prior chooses stop or split with probability one half; stopping is forced at maximum depth. Each stopped group has one independent Dirichlet-1/2 byte distribution. Full DFA states still determine transitions: emission groups need not themselves form a transition-congruent quotient.
+
+Let `L(v)` be the integrated emission evidence of every byte emitted under feature prefix `v`. Exact partition evidence satisfies `W(v) = (L(v) + product_c W(vc))/2` internally and `W(v) = L(v)` at terminal depth. Unvisited subtrees have unit evidence, so only visited prefixes need storage. This sums all partition descriptions under a normalized finite prior. The predictive distribution is the posterior mixture of stopping at the node and the selected child's prediction. Each observation updates only the current feature path, then advances the deterministic program; this delivers a reusable causal posterior and the joint/prequential identity without replay.
+
+The initial program is a byte shift register padded with a start symbol. It implements a Bayesian variable-context family with tied emissions and a declared maximum depth. The generic inference engine does not depend on that constructor. This is a new model prior, not a convergence fix or a truncation of the sparse default/override prior. [E0g](experiments/E0-generated-partition-dfa.md) measures the initial causal comparison; non-context generators and stronger smoothing controls remain research work.

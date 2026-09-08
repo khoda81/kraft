@@ -1,7 +1,11 @@
 use std::{fs::File, io::Read, num::NonZeroUsize, path::PathBuf, process::ExitCode, time::Instant};
 
 use clap::Parser;
-use kraft::{baselines::Kt, evaluate, models::sparse_dfa_anytime::SparseDfaAnytime};
+use kraft::{
+    baselines::Kt,
+    evaluate,
+    models::sparse_dfa_anytime::{Schedule, SparseDfaAnytime},
+};
 
 #[derive(Debug, Parser)]
 #[command(about = "Anytime evidence bounds for the full sparse-DFA Bayesian prior")]
@@ -23,6 +27,10 @@ struct Args {
     /// Print unresolved upper-bound mass and forced-prefix depth by region type to stderr.
     #[arg(long)]
     diagnostics: bool,
+
+    /// Experimental: prioritize tails by the next exact count's upper mass.
+    #[arg(long)]
+    exposed_tail_priority: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -96,11 +104,21 @@ fn report(
         search.regions(),
         search.resolved_regions(),
         diagnostic.bound_scan_bytes,
-        values.into_iter().map(number).collect::<Vec<_>>().join("\t"),
+        values
+            .into_iter()
+            .map(number)
+            .collect::<Vec<_>>()
+            .join("\t"),
     );
     if detailed {
-        eprintln!("diagnostics steps={} ln_unresolved_upper={} (shares are fractions of summed upper bounds, not posterior probabilities)", search.steps(), number(diagnostic.ln_unresolved_upper));
-        eprintln!("kind\tregions\tln_upper\tupper_share\tmean_forced_bytes\tupper_weighted_forced_bytes\trefinements");
+        eprintln!(
+            "diagnostics steps={} ln_unresolved_upper={} (shares are fractions of summed upper bounds, not posterior probabilities)",
+            search.steps(),
+            number(diagnostic.ln_unresolved_upper)
+        );
+        eprintln!(
+            "kind\tregions\tln_upper\tupper_share\tmean_forced_bytes\tupper_weighted_forced_bytes\trefinements"
+        );
         for category in diagnostic.categories {
             eprintln!(
                 "{}\t{}\t{}\t{}\t{:.3}\t{:.3}\t{}",
@@ -126,16 +144,24 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     let uniform_nats = data.len() as f64 * 8.0 * std::f64::consts::LN_2;
     let kt_nats = evaluate(&data[..], &mut Kt::default())?.total_nats;
-    let mut search = SparseDfaAnytime::new(&data);
+    let schedule = if args.exposed_tail_priority {
+        Schedule::ExposedTailMass
+    } else {
+        Schedule::UpperMass
+    };
+    let mut search = SparseDfaAnytime::with_schedule(&data, schedule);
 
     println!("input: {:?}", args.path);
     println!("prefix_bytes: {}", data.len());
+    println!("schedule: {schedule:?}");
     println!("target: exact sparse-DFA Bayesian mixture prequential cost");
     println!(
         "note: this binary certifies joint evidence; it is not yet the finite-compute streaming codec"
     );
     println!();
-    println!("steps\tregions\tresolved_regions\tbound_scan_bytes\tcode_lower_nats\tcode_upper_nats\tgap_nats\tratio_uniform_lower\tratio_uniform_upper\tratio_kt_lower\tratio_kt_upper\tlower_gain_nats\tupper_gain_nats\tgap_gain_nats_per_step\tgap_gain_nats_per_work_s\telapsed_s\twork_s");
+    println!(
+        "steps\tregions\tresolved_regions\tbound_scan_bytes\tcode_lower_nats\tcode_upper_nats\tgap_nats\tratio_uniform_lower\tratio_uniform_upper\tratio_kt_lower\tratio_kt_upper\tlower_gain_nats\tupper_gain_nats\tgap_gain_nats_per_step\tgap_gain_nats_per_work_s\telapsed_s\twork_s"
+    );
     let mut previous = report(
         &search,
         (uniform_nats, kt_nats),

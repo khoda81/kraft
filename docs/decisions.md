@@ -104,3 +104,15 @@ Hard search cutoffs such as `--states ...` and `--max-exceptions ...` remain val
 **Accepted:** keep the inference/model core compact and readable. Internal invariants should be expressed through types, ownership, private construction, and narrow APIs rather than repeated runtime validation of states produced only by KRAFT itself. Defensive checks remain appropriate at external-input boundaries.
 
 The rewrite may make breaking or nuclear internal changes when they remove duplicated logic, stale abstractions, or semantic ambiguity. Readability and line count matter as engineering constraints, provided mathematical correctness and measured performance are preserved.
+
+## 2026-09-08 — D023: distinguish mass coverage from certificate convergence
+
+The unbounded sparse prior remains the Bayesian target, but covering its mass does not establish arbitrarily tight convergence. The current large-state representation permanently retains a universal likelihood bound above 65,535 states. Treat symbolic tail reasoning as unfinished research, and distinguish mathematically valid bound formulas from rigorous numerical enclosures. Diagnostics can identify where upper mass and work accumulate; a source audit alone does not establish which mechanism dominates runtime or certificate stagnation.
+
+## 2026-09-08 — D024: test exposed tail mass as scheduling utility only
+
+An experimental policy ranks state-count and exception-count tail actions by the upper mass of the next exact count exposed. It discounts mass that the immediate action leaves in another tail; it is a heuristic, not posterior reweighting or a proven value-of-computation rule. Keep largest-upper-mass scheduling as default: E0f finds slight interval improvement at equal refinements but increased elapsed time, insufficient evidence to promote the alternative.
+
+## 2026-09-08 — D025: generated-state partition posterior as a new model family
+
+Implement the generated-transition direction with a generic finite-state feature interface and exact Bayesian stop/split emission partitions. The first constructor is byte history. This makes common context dynamics cheap and shares statistics through latent emission groups. Maximum feature depth defines an explicitly finite prior; it must not be described as an approximation to the unbounded sparse prior. Emission tying is a changed modeling assumption, and the full generator state retains transition memory even when emissions share a group. Keep the original sparse family available. Report the causal posterior against fixed-order contexts, then investigate non-context constructors and matched smoothing controls rather than claiming arbitrary transition learning from a history-only result.

@@ -318,6 +318,7 @@ fn node(region: SparseRegion, data: &[u8], suffix_upper: &[f64]) -> FrontierNode
 #[derive(Debug, Clone)]
 struct WorkItem {
     node: FrontierNode<SparseRegion>,
+    ln_priority: f64,
     order: usize,
     forced_prefix_bytes: usize,
 }
@@ -338,10 +339,8 @@ impl PartialOrd for WorkItem {
 
 impl Ord for WorkItem {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.node
-            .evidence
-            .ln_upper()
-            .total_cmp(&other.node.evidence.ln_upper())
+        self.ln_priority
+            .total_cmp(&other.ln_priority)
             .then_with(|| other.order.cmp(&self.order))
     }
 }
@@ -378,8 +377,33 @@ const REGION_KINDS: [&str; 7] = [
     "opaque",
 ];
 
+/// Scheduling changes work order only, never Bayesian region mass.
+#[derive(Debug, Clone, Copy, Default)]
+pub enum Schedule {
+    #[default]
+    UpperMass,
+    /// Rank a tail by the upper mass of the next exact count it exposes.
+    ExposedTailMass,
+}
+
+impl Schedule {
+    fn priority(self, node: &FrontierNode<SparseRegion>) -> f64 {
+        let adjustment = match (self, &node.region) {
+            (Self::ExposedTailMass, SparseRegion::StatesTail(tail)) => {
+                tail.split().0.ln_prior_mass() - tail.ln_prior_mass()
+            }
+            (Self::ExposedTailMass, SparseRegion::ExceptionTail(tail)) => {
+                tail.split().0.ln_prior_mass() - tail.ln_prior_mass()
+            }
+            _ => 0.0,
+        };
+        node.evidence.ln_upper() + adjustment
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct SparseDfaAnytime {
+    schedule: Schedule,
     data: Vec<u8>,
     suffix_upper: Vec<f64>,
     work: BinaryHeap<WorkItem>,
@@ -394,6 +418,10 @@ pub struct SparseDfaAnytime {
 
 impl SparseDfaAnytime {
     pub fn new(data: &[u8]) -> Self {
+        Self::with_schedule(data, Schedule::UpperMass)
+    }
+
+    pub fn with_schedule(data: &[u8], schedule: Schedule) -> Self {
         let suffix_upper = universal_suffix_upper(data);
         let (root, depth) = evaluated_node(
             SparseRegion::StatesTail(StateCountTail::root()),
@@ -401,6 +429,7 @@ impl SparseDfaAnytime {
             &suffix_upper,
         );
         let mut search = Self {
+            schedule,
             data: data.to_vec(),
             suffix_upper,
             work: BinaryHeap::new(),
@@ -423,6 +452,7 @@ impl SparseDfaAnytime {
             self.resolved_regions += 1;
         } else if node.region.refinable() {
             self.work.push(WorkItem {
+                ln_priority: self.schedule.priority(&node),
                 node,
                 order: self.next_order,
                 forced_prefix_bytes: depth,
@@ -494,10 +524,9 @@ impl SparseDfaAnytime {
             let upper = node.evidence.ln_upper();
             total_upper = log_add_exp(total_upper, upper);
             let combined = log_add_exp(category.ln_upper, upper);
-            category.upper_weighted_forced_prefix_bytes =
-                (category.ln_upper - combined).exp()
-                    * category.upper_weighted_forced_prefix_bytes
-                    + (upper - combined).exp() * depth as f64;
+            category.upper_weighted_forced_prefix_bytes = (category.ln_upper - combined).exp()
+                * category.upper_weighted_forced_prefix_bytes
+                + (upper - combined).exp() * depth as f64;
             category.ln_upper = combined;
             category.regions += 1;
             category.mean_forced_prefix_bytes += depth as f64;
@@ -512,10 +541,7 @@ impl SparseDfaAnytime {
             }
         }
         AnytimeDiagnostics {
-            bounds: LogEvidenceBounds::new_internal(
-                self.resolved_ln_mass,
-                total_upper,
-            ),
+            bounds: LogEvidenceBounds::new_internal(self.resolved_ln_mass, total_upper),
             ln_unresolved_upper: unresolved,
             bound_scan_bytes: self.bound_scan_bytes,
             categories,
@@ -548,11 +574,19 @@ mod tests {
         let diagnostic = search.diagnostics();
         assert_eq!(before, diagnostic.bounds);
         assert_eq!(
-            diagnostic.categories.iter().map(|c| c.regions).sum::<usize>(),
+            diagnostic
+                .categories
+                .iter()
+                .map(|c| c.regions)
+                .sum::<usize>(),
             search.regions()
         );
         assert_eq!(
-            diagnostic.categories.iter().map(|c| c.refinements).sum::<usize>(),
+            diagnostic
+                .categories
+                .iter()
+                .map(|c| c.refinements)
+                .sum::<usize>(),
             search.steps()
         );
         let shares: f64 = diagnostic.categories.iter().map(|c| c.upper_share).sum();
@@ -687,16 +721,40 @@ mod tests {
 
     #[test]
     fn evidence_interval_tightens_monotonically() {
-        let mut search = SparseDfaAnytime::new(b"aba");
-        let mut previous = search.bounds();
-        for _ in 0..2000 {
-            search.step();
-            let current = search.bounds();
-            assert!(current.ln_lower() + 1e-12 >= previous.ln_lower());
-            assert!(current.ln_upper() <= previous.ln_upper() + 1e-12);
-            previous = current;
+        for schedule in [Schedule::UpperMass, Schedule::ExposedTailMass] {
+            let mut search = SparseDfaAnytime::with_schedule(b"aba", schedule);
+            let mut previous = search.bounds();
+            for _ in 0..2000 {
+                search.step();
+                let current = search.bounds();
+                assert!(current.ln_lower() + 1e-12 >= previous.ln_lower());
+                assert!(current.ln_upper() <= previous.ln_upper() + 1e-12);
+                previous = current;
+            }
+            assert!(search.resolved_regions() > 0);
         }
-        assert!(search.resolved_regions() > 0);
+    }
+
+    #[test]
+    fn both_schedules_resolve_the_same_exhaustive_submixture() {
+        let data = b"ababa";
+        let region = n2_stay_k1_region();
+        let expected = exact_k1_mass(&region, data);
+        for schedule in [Schedule::UpperMass, Schedule::ExposedTailMass] {
+            let mut search = SparseDfaAnytime::with_schedule(data, schedule);
+            search.work.clear();
+            let (root, depth) = evaluated_node(
+                SparseRegion::Keys(region.clone()),
+                data,
+                &search.suffix_upper,
+            );
+            search.push(root, depth);
+            search.run(1000);
+            assert!(!search.has_work());
+            let bounds = search.bounds();
+            assert!(bounds.is_exact());
+            assert!((bounds.ln_lower() - expected).abs() < 1e-12);
+        }
     }
 
     #[test]

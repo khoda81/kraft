@@ -19,6 +19,8 @@ Updated: 2026-09-07. Work from the first unblocked item. Historical experiment r
 - [ ] A7 — Compare scheduler policies (`U`, `U/cost`, and controlled alternatives) on the same Bayesian target and causal prefix stream.
 - [ ] A8 — Run tiny exact prequential mixture experiments and verify cumulative online loss equals negative log joint mixture evidence.
 - [ ] L0 — Add a compact generated-transition language capable of expressing byte shift registers/n-grams with short descriptions; do not special-case benchmark order in the inference engine.
+- [x] L0a — Implement generic finite-state feature partitions with a byte-history constructor and exact causal stop/split posterior. E0g passes tiny enumeration and 100k/1M comparisons; L0 remains open for broader constructors.
+- [ ] L0b — Add useful non-context generators and matched stronger emission/smoothing controls; quantify incremental gains before full-corpus evaluation.
 - [ ] L1 — Re-run n-gram comparisons under the richer transition-description prior.
 
 ## Exact-oracle / optimization backlog
@@ -41,4 +43,6 @@ Updated: 2026-09-07. Work from the first unblocked item. Historical experiment r
 ## Diagnostic follow-up (2026-09-08)
 
 - [x] Expose precise anytime evidence intervals, per-category upper mass, forced-prefix lengths, refinement counts, and work-normalized progress; stop exhausted frontiers.
-- [ ] Run Rust validation gates and repeat the 1,000-byte enwik8 experiment with `--diagnostics`; use the mass/depth breakdown to choose the next bound or representation change.
+- [x] Run Rust validation gates and short-input CLI termination regression locally.
+- [x] Repeat the 1,000-byte enwik8 experiment with `--diagnostics`; [E0f](experiments/E0-anytime-diagnostic.md) shows shallow trajectories and state-tail expansion. An exposed-tail scheduling ablation tightens slightly but takes more time.
+- [ ] Develop symbolic large-state and trajectory likelihood bounds; account for the permanent `B(x)/65536` upper-evidence contribution before claiming arbitrarily tight convergence.

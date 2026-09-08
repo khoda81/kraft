@@ -1,6 +1,12 @@
 # Current status
 
 Updated: 2026-09-07 (UTC).
+ 
+## Latest measured progress (2026-09-08)
+
+A new generated-state emission-partition posterior now implements causal `Model<u8>` with exact finite-family inference and no replay. With a frozen eight-byte-history generator it achieves 275720.910 nats on 100k enwik8 bytes and 2291568.906 nats on 1M bytes, improving on the best tested fixed-order KT n-gram by 1.781% and 4.912%, respectively. [E0g](experiments/E0-generated-partition-dfa.md) records the full comparison, prior, tests, and hashes.
+
+This is a different declared family with shared emission parameters; it does not fix the original sparse posterior's tail certificate. History-only results demonstrate variable-context learning, not arbitrary recurrent transition discovery. Full-corpus evaluation, stronger smoothing controls, and useful non-context state generators remain open. The historical sparse-search status below still applies to that path.
 
 ## Stage
 
@@ -55,4 +61,8 @@ This is exact Rao-Blackwellization / trajectory weighted model counting: all unq
 
 The anytime CLI now reports precise code endpoints, interval width, endpoint gains, and interval-width improvement per refinement and per search second. `--diagnostics` adds unresolved upper mass by region category, ordinary and upper-mass-weighted forced-prefix length, and cumulative refinement counts. These shares describe upper bounds, not inferred posterior probabilities. Likelihood scan-byte counts include repeated bound replay but exclude transition-only scans. Empty and one-byte inputs stop when the frontier has no refinable work. See [diagnostic usage](harness.md#anytime-convergence-diagnostics).
 
-This is instrumentation, not a convergence improvement: the prior, refinement order, and likelihood bounds remain unchanged. Rust validation is pending because the audit workspace has no Rust toolchain.
+The instrumentation preserves the prior and likelihood bounds. Local validation on 2026-09-08 passed formatting, clippy with warnings denied, locked tests (including short-input CLI termination), and documentation checks. The [1,000-byte diagnostic and scheduler ablation](experiments/E0-anytime-diagnostic.md) now completed: default bounds are 2383.656250–3631.549819 nats after 100,000 refinements, below the strongest tested fixed-order baseline's cost of 3661.633677 nats at the upper endpoint. This is evidence about the exact mixture, not a measured streaming approximate learner.
+
+An opt-in exposed-tail-mass scheduler slightly improves the interval at equal refinement count but costs about 2.84 times as much elapsed time in this single diagnostic. The default remains unchanged. Stronger symbolic bounds and a reusable causal posterior remain necessary research work toward beating n-grams on substantial data.
+
+The large-state representation also imposes a permanent coding-cost lower-endpoint ceiling of `-ln B(x) + ln(65536)` for prefixes of at least two bytes. See [bound limitations](theory.md#current-sparse-anytime-bound-limitations). Mass accounting is preserved, but arbitrarily tight convergence is not delivered. The relative contribution of loose bounds, prerequisite expansion, and replay overhead to the observed plateau still needs measurement.

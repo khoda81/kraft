@@ -97,3 +97,14 @@ Detailed stderr tables report each unresolved region category's count, log upper
 `bound_scan_bytes` counts cumulative bytes visited by likelihood-bound evaluations, including root initialization and repeated replay; it excludes transition-only ambiguity scans and suffix preprocessing. `work_s` measures only the last search batch. `elapsed_s` starts before input loading and includes setup and earlier reporting, so reporting overhead is not hidden in total runtime. Reporting still scans the frontier; use a larger report interval for throughput measurements.
 
 A separate table format replaces the old compact interval columns. The command stops when its budget is reached or no refinable regions remain; any opaque mass is still included in the final bounds.
+
+`--exposed-tail-priority` enables an experimental scheduler: state-count and exception-count tails are ranked by the upper mass of the next exact-count child they expose. This changes scheduling utility only; all Bayesian region masses and bounds remain intact. The default still ranks full upper mass. In the [first diagnostic](experiments/E0-anytime-diagnostic.md), the alternative tightened slightly per refinement but took more time, so it is not a recommended throughput optimization.
+
+## Causal generated-state partition posterior
+
+```sh
+cargo run --release --locked --bin partition-dfa -- \
+  ../text-preq-encoding/preq-encoding/data/enwik/enwik8 --limit 1000000 --depth 8
+```
+
+This command uses the shared `predict -> score -> observe` evaluator. It reports total nats, bits per byte, joint log evidence, allocated nodes, node updates, and elapsed seconds. `--depth` defines the finite byte-history partition prior, not a compute truncation of the sparse-DFA model. Root stop/split choices are marginalized exactly; all logs are natural. The state starts padded with symbol 256. [Theory](theory.md#generated-dfa-states-with-bayesian-emission-partitions) and [E0g](experiments/E0-generated-partition-dfa.md) explain parameter sharing and interpretation.

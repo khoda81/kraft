@@ -166,3 +166,23 @@ The discussion explored Bayesian mixtures over programs, allocating compute acco
 Source audit identified broad likelihood bounds, structural splits with no immediate bound reduction, and permanently opaque large-state regions as obstacles to convergence. Added diagnostics to distinguish these mechanisms experimentally: precise interval endpoints and gains, upper mass and forced-prefix depth by region category, refinement counts, and likelihood-bound scan bytes. Detailed diagnostics reuse cached depth metadata and do not replay trajectories; aggregation remains linear in frontier size. Scheduling and Bayesian target are unchanged.
 
 Fixed the CLI loop for already-resolved empty/one-byte inputs and bounded input reading by the requested prefix. Added regression checks for diagnostic accounting and exhausted short-input searches. No convergence experiment is claimed. Rust tests, formatting, and clippy could not run: no toolchain is installed, and the attempted toolchain-host network request was cancelled at approval.
+
+## 2026-09-08 — Local validation and certificate limitation follow-up
+
+The local workspace already contained diagnostic implementation commit `6792906a` and formatting-only working-copy changes. Preserved those changes and validated with `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets --all-features -- -D warnings`, `cargo test --locked`, and `python3 scripts/check_docs.py`; all passed, including the process-level empty/one-byte termination regression.
+
+Documented the permanent `B(x)/65536` upper-evidence contribution from large-state descriptions and the absence of a floating-point enclosure guarantee (D023). The quoted 2391.851-nat endpoint ceiling is derived from the audit's initial bound, not a new measured run. No convergence or performance experiment was run; stronger bounds and comparative scheduler measurements remain pending.
+
+## 2026-09-08 — Measure n-gram gap and tail-action scheduling
+
+Ran [E0f](experiments/E0-anytime-diagnostic.md) on the first 1,000 enwik8 bytes at 100,000 refinements. Default scheduling spends 70,269 actions on the state tail and none on destinations. Added opt-in exposed-tail-mass priority, preserving the prior and evidence aggregation, and tested the same budget. It reduces the coding-cost upper endpoint from 3631.549819 to 3631.415556 nats, but increases elapsed time from 0.171 to 0.487 seconds in single samples. Baseline orders 0–4 range from 3661.633677 to 4300.779298 nats; order 0 wins this short prefix.
+
+The exact mixture therefore has a cost upper bound below these baselines on this prefix, but this does not deliver the finite-compute streaming posterior or establish longer-corpus superiority. Both intervals remain wider than 1246 nats. Default policy is unchanged (D024). Added both-policy monotonicity and exhaustive fixed-submixture resolution regressions. Next prioritize symbolic bounds and reusable causal inference rather than expanding the frontier faster.
+
+## 2026-09-08 — Exact causal generated-state emission partitions
+
+Implemented a generic finite-state feature interface, byte-history generator, and exact stop/split emission-partition posterior (D025). The new family shares emission parameters across full DFA states and preserves state-transition memory. It is distinct from the unbounded sparse prior. `partition-dfa` scores through the shared causal evaluator and reports joint evidence, nodes, node updates, and wall time.
+
+[E0g](experiments/E0-generated-partition-dfa.md) froze depth eight and both enwik8 prefixes before running. At 100k bytes the posterior beats the best fixed-order KT reference by 5000.119189 nats (1.781%); at 1M bytes it beats it by 118382.516111 nats (4.912%). Prediction-score totals agree with negative joint evidence to nine printed decimals. Timings were 0.208 and 2.523 seconds; all node updates are counted, and no replay/search occurs. Startup conventions differ and stronger smoothing controls remain necessary.
+
+Validated normalized predictions, depth-zero KT identity, all five partitions of a binary depth-two generator, joint/prequential equality, and chunk continuation. Formatting, clippy with warnings denied, and all locked tests pass. This is meaningful causal coding progress but not full-corpus superiority or an arbitrary learned DFA transition posterior.
