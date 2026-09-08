@@ -169,18 +169,6 @@ impl SparseDfa {
         Self::new(states, topology, Vec::new())
     }
 
-    pub(crate) fn from_valid_parts(
-        states: u16,
-        topology: DefaultTopology,
-        overrides: Vec<SparseOverride>,
-    ) -> Self {
-        Self {
-            states,
-            topology,
-            overrides,
-        }
-    }
-
     pub fn states(&self) -> u16 {
         self.states
     }
