@@ -1,6 +1,9 @@
 //! Runnable anytime evidence bounds for the sparse-DFA Bayesian mixture.
 
-use std::{cmp::Ordering, collections::{BinaryHeap, HashMap}};
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap},
+};
 
 use crate::{
     anytime::{FrontierNode, LogEvidenceBounds, PriorRegion, log_add_exp},
@@ -55,9 +58,7 @@ impl KeySetRegion {
         match self.assignments.binary_search_by_key(&key, |&(key, _)| key) {
             Ok(index) => Some(self.assignments[index].1),
             Err(_) if self.needed == 0 => Some(default),
-            Err(_) if self.needed == self.remaining && self.shape.states == 2 => {
-                Some(1 - default)
-            }
+            Err(_) if self.needed == self.remaining && self.shape.states == 2 => Some(1 - default),
             Err(_) => None,
         }
     }
@@ -445,7 +446,12 @@ mod tests {
 
     fn exact_k1_mass(region: &KeySetRegion, data: &[u8]) -> f64 {
         (0..512_u32)
-            .filter(|key| region.assignments.binary_search_by_key(key, |&(key, _)| key).is_err())
+            .filter(|key| {
+                region
+                    .assignments
+                    .binary_search_by_key(key, |&(key, _)| key)
+                    .is_err()
+            })
             .fold(f64::NEG_INFINITY, |mass, key| {
                 let source = (key >> 8) as u16;
                 let byte = key as u8;
@@ -468,14 +474,17 @@ mod tests {
             .into_iter()
             .find_map(|child| match child {
                 SparseRegion::Keys(region)
-                    if region.assignments.last().is_some_and(|&(key, destination)| {
-                        let source = (key >> 8) as u16;
-                        destination
-                            == region
-                                .shape
-                                .topology
-                                .default_destination(source, region.shape.states)
-                    }) =>
+                    if region
+                        .assignments
+                        .last()
+                        .is_some_and(|&(key, destination)| {
+                            let source = (key >> 8) as u16;
+                            destination
+                                == region
+                                    .shape
+                                    .topology
+                                    .default_destination(source, region.shape.states)
+                        }) =>
                 {
                     Some(region)
                 }
