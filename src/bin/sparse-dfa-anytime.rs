@@ -141,3 +141,16 @@ fn main() -> ExitCode {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ranges_are_compact_and_outward() {
+        assert_eq!(range(1.012144404961, 1.537038328816), "1.01..1.54");
+        assert_eq!(range(2382.265, 3617.699), "2380..3620");
+        assert_eq!(range(0.0, f64::INFINITY), "0..inf");
+    }
+}
