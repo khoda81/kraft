@@ -32,33 +32,21 @@ fn code_bounds(search: &SparseDfaAnytime) -> (f64, f64) {
     (lower, upper)
 }
 
-fn truncate_significant(value: f64, digits: i32, up: bool) -> f64 {
-    if value == 0.0 || !value.is_finite() {
-        return value;
-    }
-    let scale = 10_f64.powi(digits - 1 - value.abs().log10().floor() as i32);
-    let scaled = value * scale;
-    let rounded = if up { scaled.ceil() } else { scaled.floor() };
-    rounded / scale
-}
-
-fn short(value: f64) -> String {
-    if value.is_infinite() {
-        return "inf".into();
-    }
-    if value == 0.0 {
-        return "0".into();
-    }
-    let decimals = (2 - value.abs().log10().floor() as i32).max(0) as usize;
-    format!("{value:.decimals$}")
-}
-
 fn range(lower: f64, upper: f64) -> String {
-    format!(
-        "{}..{}",
-        short(truncate_significant(lower, 3, false)),
-        short(truncate_significant(upper, 3, true))
-    )
+    if upper.is_infinite() {
+        return format!("{lower:.3}..inf");
+    }
+    let width = upper - lower;
+    if width == 0.0 {
+        return format!("{lower:.6}");
+    }
+
+    let places = 1 - width.log10().floor() as i32;
+    let scale = 10_f64.powi(places);
+    let lower = (lower * scale).floor() / scale;
+    let upper = (upper * scale).ceil() / scale;
+    let decimals = places.max(0) as usize;
+    format!("{lower:.decimals$}..{upper:.decimals$}")
 }
 
 fn report(search: &SparseDfaAnytime, uniform_nats: f64, kt_nats: f64, elapsed: f64) {
@@ -147,7 +135,8 @@ mod tests {
     #[test]
     fn ranges_are_compact_and_outward() {
         assert_eq!(range(1.012144404961, 1.537038328816), "1.01..1.54");
-        assert_eq!(range(2382.265, 3617.699), "2380..3620");
-        assert_eq!(range(0.0, f64::INFINITY), "0..inf");
+        assert_eq!(range(2382.265, 3617.699), "2300..3700");
+        assert_eq!(range(2382.265, 2382.703), "2382.26..2382.71");
+        assert_eq!(range(0.0, f64::INFINITY), "0.000..inf");
     }
 }
