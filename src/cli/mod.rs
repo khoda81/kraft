@@ -110,7 +110,10 @@ fn run(args: Vec<OsString>) -> io::Result<()> {
         ("eval", "partition-dfa" | "partition") => delegated(rest, partition_dfa::command),
 
         ("infer", "dfa") => {
-            if rest.iter().any(|arg| arg == "--states" || arg == "--epsilon") {
+            if rest
+                .iter()
+                .any(|arg| arg == "--states" || arg == "--epsilon")
+            {
                 delegated(rest, dfa_posterior::command)
             } else {
                 delegated(rest, dfa_bayes::command)
@@ -186,10 +189,8 @@ fn materialize(input: Input) -> io::Result<MaterializedInput> {
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_nanos();
-            let path = env::temp_dir().join(format!(
-                "kraft-stdin-{}-{nonce}.bin",
-                std::process::id()
-            ));
+            let path =
+                env::temp_dir().join(format!("kraft-stdin-{}-{nonce}.bin", std::process::id()));
             let mut file = File::create_new(&path)?;
             file.write_all(&data)?;
             file.flush()?;
@@ -275,17 +276,13 @@ fn eval_model(
 
     let started = Instant::now();
     let mut offset = 0_u64;
-    let report = evaluate_with_costs(
-        reader.take(limit.unwrap_or(u64::MAX)),
-        &mut model,
-        |cost| {
-            if let Some(output) = &mut output {
-                writeln!(output, "{offset},{cost:.17}")?;
-            }
-            offset += 1;
-            Ok(())
-        },
-    )?;
+    let report = evaluate_with_costs(reader.take(limit.unwrap_or(u64::MAX)), &mut model, |cost| {
+        if let Some(output) = &mut output {
+            writeln!(output, "{offset},{cost:.17}")?;
+        }
+        offset += 1;
+        Ok(())
+    })?;
     if let Some(output) = &mut output {
         output.flush()?;
     }
@@ -326,7 +323,7 @@ mod tests {
             OsString::from("--limit"),
             OsString::from("10"),
         ]);
-        assert!(matches!(input, Input::File(path) if path == PathBuf::from("sample.bin")));
+        assert!(matches!(input, Input::File(path) if path.as_os_str() == "sample.bin"));
         assert_eq!(rest.len(), 2);
     }
 }

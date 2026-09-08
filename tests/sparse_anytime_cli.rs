@@ -14,7 +14,8 @@ fn short_inputs_exit_and_report_exact_bounds() {
     let path = std::env::temp_dir().join(format!("kraft-short-{}-{nonce}", std::process::id()));
     for data in [&b""[..], &b"a"[..]] {
         fs::write(&path, data).unwrap();
-        let mut child = Command::new(env!("CARGO_BIN_EXE_sparse-dfa-anytime"))
+        let mut child = Command::new(env!("CARGO_BIN_EXE_kraft"))
+            .args(["infer", "sparse-dfa"])
             .arg(&path)
             .args(["--steps", "10000", "--diagnostics"])
             .stdout(Stdio::piped())

@@ -9,8 +9,8 @@
 //! The 512-bit gap is only 64 bytes over the entire corpus.
 
 use std::{
-    cmp::Ordering, collections::HashSet, ffi::OsString, fs, io, path::PathBuf,
-    thread, time::Instant,
+    cmp::Ordering, collections::HashSet, ffi::OsString, fs, io, path::PathBuf, thread,
+    time::Instant,
 };
 
 const ALPHABET: usize = 256;

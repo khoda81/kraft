@@ -52,7 +52,7 @@ All fixed-order baseline nats:
 | 7 | 485987.949115985 | 4335341.154744701 |
 | 8 | 500761.238531004 | 4587297.112600601 |
 
-Source and artifact hashes are in the [manifest](E0-generated-partition-dfa.sha256). Artifacts are local, reproducible outputs, not remotely archived. No peak-memory measurement was taken; node count is not a byte-memory estimate.
+Source and artifact hashes were recorded with the local artifacts for this run. Artifacts are local, reproducible outputs, not remotely archived. No peak-memory measurement was taken; node count is not a byte-memory estimate.
 
 ## Interpretation and limitations
 

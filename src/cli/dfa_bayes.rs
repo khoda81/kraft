@@ -330,10 +330,12 @@ pub fn command(args: Vec<std::ffi::OsString>) -> io::Result<()> {
     let argv = std::iter::once(std::ffi::OsString::from("kraft infer dfa-prior")).chain(args);
     let args = match Args::try_parse_from(argv) {
         Ok(args) => args,
-        Err(error) if matches!(
-            error.kind(),
-            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
-        ) => {
+        Err(error)
+            if matches!(
+                error.kind(),
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+            ) =>
+        {
             print!("{error}");
             return Ok(());
         }

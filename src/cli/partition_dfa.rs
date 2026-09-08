@@ -44,17 +44,21 @@ pub fn command(args: Vec<std::ffi::OsString>) -> std::io::Result<()> {
     let argv = std::iter::once(std::ffi::OsString::from("kraft eval partition-dfa")).chain(args);
     let args = match Args::try_parse_from(argv) {
         Ok(args) => args,
-        Err(error) if matches!(
-            error.kind(),
-            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
-        ) => {
+        Err(error)
+            if matches!(
+                error.kind(),
+                clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+            ) =>
+        {
             print!("{error}");
             return Ok(());
         }
-        Err(error) => return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            error.to_string(),
-        )),
+        Err(error) => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                error.to_string(),
+            ));
+        }
     };
     run(args).map_err(|error| std::io::Error::other(error.to_string()))
 }
