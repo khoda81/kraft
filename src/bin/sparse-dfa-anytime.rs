@@ -104,9 +104,7 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         "note: this binary certifies joint evidence; it is not yet the finite-compute streaming codec"
     );
     println!();
-    println!(
-        "steps\tregions\tresolved_regions\tcode_nats\tratio_uniform\tratio_kt\telapsed_s"
-    );
+    println!("steps\tregions\tresolved_regions\tcode_nats\tratio_uniform\tratio_kt\telapsed_s");
     report(
         &search,
         uniform_nats,
@@ -141,7 +139,6 @@ fn main() -> ExitCode {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
