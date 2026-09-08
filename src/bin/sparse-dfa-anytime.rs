@@ -32,6 +32,35 @@ fn code_bounds(search: &SparseDfaAnytime) -> (f64, f64) {
     (lower, upper)
 }
 
+fn truncate_significant(value: f64, digits: i32, up: bool) -> f64 {
+    if value == 0.0 || !value.is_finite() {
+        return value;
+    }
+    let scale = 10_f64.powi(digits - 1 - value.abs().log10().floor() as i32);
+    let scaled = value * scale;
+    let rounded = if up { scaled.ceil() } else { scaled.floor() };
+    rounded / scale
+}
+
+fn short(value: f64) -> String {
+    if value.is_infinite() {
+        return "inf".into();
+    }
+    if value == 0.0 {
+        return "0".into();
+    }
+    let decimals = (2 - value.abs().log10().floor() as i32).max(0) as usize;
+    format!("{value:.decimals$}")
+}
+
+fn range(lower: f64, upper: f64) -> String {
+    format!(
+        "{}..{}",
+        short(truncate_significant(lower, 3, false)),
+        short(truncate_significant(upper, 3, true))
+    )
+}
+
 fn report(search: &SparseDfaAnytime, uniform_nats: f64, kt_nats: f64, elapsed: f64) {
     let (lower, upper) = code_bounds(search);
     let ratio_uniform_lower = if upper.is_infinite() {
@@ -48,16 +77,13 @@ fn report(search: &SparseDfaAnytime, uniform_nats: f64, kt_nats: f64, elapsed: f
     let ratio_kt_upper = kt_nats / lower;
 
     println!(
-        "{}\t{}\t{}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.12}\t{:.3}",
+        "{}\t{}\t{}\t{}\t{}\t{}\t{:.3}",
         search.steps(),
         search.regions(),
         search.resolved_regions(),
-        lower,
-        upper,
-        ratio_uniform_lower,
-        ratio_uniform_upper,
-        ratio_kt_lower,
-        ratio_kt_upper,
+        range(lower, upper),
+        range(ratio_uniform_lower, ratio_uniform_upper),
+        range(ratio_kt_lower, ratio_kt_upper),
         elapsed,
     );
 }
@@ -79,7 +105,7 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     );
     println!();
     println!(
-        "steps\tregions\tresolved_models\tcode_lower_nats\tcode_upper_nats\tratio_uniform_lower\tratio_uniform_upper\tratio_kt_lower\tratio_kt_upper\telapsed_s"
+        "steps\tregions\tresolved_regions\tcode_nats\tratio_uniform\tratio_kt\telapsed_s"
     );
     report(
         &search,
