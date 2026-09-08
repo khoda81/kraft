@@ -1,6 +1,6 @@
 //! Runnable anytime evidence bounds for the sparse-DFA Bayesian mixture.
 
-use std::{cmp::Ordering, collections::BinaryHeap};
+use std::{cmp::Ordering, collections::{BinaryHeap, HashMap}};
 
 use crate::{
     anytime::{FrontierNode, LogEvidenceBounds, PriorRegion, log_add_exp},
@@ -217,21 +217,17 @@ impl SparseRegion {
     }
 
     fn ln_likelihood_bound(&self, data: &[u8], suffix_upper: &[f64]) -> (f64, bool) {
-        let mut states = Vec::with_capacity(data.len());
+        let mut totals = HashMap::<u16, u32>::new();
+        let mut counts = HashMap::<(u16, u8), u32>::new();
         let mut state = 0_u16;
         let mut ln_likelihood = 0.0;
 
         for (i, &byte) in data.iter().enumerate() {
-            let mut total = 0_u64;
-            let mut matching = 0_u64;
-            for (&previous_state, &previous_byte) in states.iter().zip(data) {
-                if previous_state == state {
-                    total += 1;
-                    matching += u64::from(previous_byte == byte);
-                }
-            }
+            let total = *totals.get(&state).unwrap_or(&0);
+            let matching = *counts.get(&(state, byte)).unwrap_or(&0);
             ln_likelihood += ((matching as f64 + 0.5) / (total as f64 + 128.0)).ln();
-            states.push(state);
+            *totals.entry(state).or_default() += 1;
+            *counts.entry((state, byte)).or_default() += 1;
 
             if i + 1 == data.len() {
                 return (ln_likelihood, true);
