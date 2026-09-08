@@ -15,12 +15,7 @@ fn basic_eval_reads_stdin_when_input_is_omitted() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(b"hello")
-        .unwrap();
+    child.stdin.take().unwrap().write_all(b"hello").unwrap();
 
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success());
@@ -37,12 +32,7 @@ fn delegated_model_reads_stdin_when_input_is_omitted() {
         .stdout(Stdio::piped())
         .spawn()
         .unwrap();
-    child
-        .stdin
-        .take()
-        .unwrap()
-        .write_all(b"hello")
-        .unwrap();
+    child.stdin.take().unwrap().write_all(b"hello").unwrap();
 
     let output = child.wait_with_output().unwrap();
     assert!(output.status.success());
