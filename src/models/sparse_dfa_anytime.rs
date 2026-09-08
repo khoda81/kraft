@@ -8,7 +8,7 @@ use std::{
 use crate::{
     anytime::{FrontierNode, LogEvidenceBounds, PriorRegion, log_add_exp},
     models::{
-        sparse_dfa::{DefaultTopology, SparseDfa, SparseOverride},
+        sparse_dfa::DefaultTopology,
         sparse_dfa_region::{
             ExceptionCount, ExceptionCountTail, StateCount, StateCountTail, TopologyChoice,
         },
@@ -187,7 +187,6 @@ enum SparseRegion {
     Opaque(ExceptionCount),
     Keys(KeySetRegion),
     Destination(DestinationRegion),
-    Concrete(SparseDfa),
 }
 
 impl PriorRegion for SparseRegion {
@@ -200,7 +199,6 @@ impl PriorRegion for SparseRegion {
             Self::Opaque(region) => region.ln_prior_mass(),
             Self::Keys(region) => region.ln_prior_mass,
             Self::Destination(region) => region.ln_prior_mass(),
-            Self::Concrete(model) => model.ln_prior(),
         }
     }
 }
@@ -212,7 +210,6 @@ impl SparseRegion {
             Self::Topology(region) if region.states().to_u16() == Some(1) => Some(0),
             Self::Keys(region) => region.destination(state, byte),
             Self::Destination(region) => region.destination(state, byte),
-            Self::Concrete(model) => Some(model.destination(state, byte)),
             _ => None,
         }
     }
@@ -243,7 +240,7 @@ impl SparseRegion {
     }
 
     fn refinable(&self) -> bool {
-        !matches!(self, Self::Concrete(_) | Self::Opaque(_))
+        !matches!(self, Self::Opaque(_))
     }
 
     fn refine(self, data: &[u8]) -> Vec<Self> {
@@ -267,7 +264,7 @@ impl SparseRegion {
             }
             Self::Keys(region) => region.refine(data),
             Self::Destination(region) => region.refine(),
-            Self::Concrete(_) | Self::Opaque(_) => Vec::new(),
+            Self::Opaque(_) => Vec::new(),
         }
     }
 }
@@ -288,18 +285,11 @@ fn universal_suffix_upper(data: &[u8]) -> Vec<f64> {
 
 fn node(region: SparseRegion, data: &[u8], suffix_upper: &[f64]) -> FrontierNode<SparseRegion> {
     let ln_prior = region.ln_prior_mass();
-    let evidence = match &region {
-        SparseRegion::Concrete(model) => {
-            LogEvidenceBounds::exact(model.ln_prior() + model.ln_evidence(data))
-        }
-        _ => {
-            let (ln_likelihood, exact) = region.ln_likelihood_bound(data, suffix_upper);
-            if exact {
-                LogEvidenceBounds::exact(ln_prior + ln_likelihood)
-            } else {
-                LogEvidenceBounds::unresolved(ln_prior + ln_likelihood)
-            }
-        }
+    let (ln_likelihood, exact) = region.ln_likelihood_bound(data, suffix_upper);
+    let evidence = if exact {
+        LogEvidenceBounds::exact(ln_prior + ln_likelihood)
+    } else {
+        LogEvidenceBounds::unresolved(ln_prior + ln_likelihood)
     };
     FrontierNode { region, evidence }
 }
@@ -434,6 +424,7 @@ impl SparseDfaAnytime {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::sparse_dfa::{SparseDfa, SparseOverride};
 
     fn n2_stay_k1_region() -> KeySetRegion {
         let (_, tail) = StateCountTail::root().split();
@@ -455,7 +446,7 @@ mod tests {
             .fold(f64::NEG_INFINITY, |mass, key| {
                 let source = (key >> 8) as u16;
                 let byte = key as u8;
-                let model = SparseDfa::from_valid_parts(
+                let model = SparseDfa::new(
                     2,
                     DefaultTopology::Stay,
                     vec![SparseOverride {
@@ -463,7 +454,8 @@ mod tests {
                         byte,
                         destination: 1 - source,
                     }],
-                );
+                )
+                .unwrap();
                 log_add_exp(mass, model.ln_prior() + model.ln_evidence(data))
             })
     }
