@@ -1,4 +1,4 @@
-use std::{fs::File, io::Read, path::PathBuf, process::ExitCode, time::Instant};
+use std::{fs::File, io::Read, path::PathBuf, time::Instant};
 
 use clap::Parser;
 use kraft::{
@@ -40,12 +40,21 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn main() -> ExitCode {
-    match run(Args::parse()) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("partition-dfa: {error}");
-            ExitCode::FAILURE
+pub fn command(args: Vec<std::ffi::OsString>) -> std::io::Result<()> {
+    let argv = std::iter::once(std::ffi::OsString::from("kraft eval partition-dfa")).chain(args);
+    let args = match Args::try_parse_from(argv) {
+        Ok(args) => args,
+        Err(error) if matches!(
+            error.kind(),
+            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+        ) => {
+            print!("{error}");
+            return Ok(());
         }
-    }
+        Err(error) => return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            error.to_string(),
+        )),
+    };
+    run(args).map_err(|error| std::io::Error::other(error.to_string()))
 }

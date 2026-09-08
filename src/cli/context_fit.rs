@@ -9,7 +9,7 @@
 //! under exact integrated Dirichlet-1/2 evidence, producing a deterministic
 //! full-corpus curve from one context through all 256 byte contexts.
 
-use std::{env, ffi::OsString, fs, io, path::PathBuf, process::ExitCode, time::Instant};
+use std::{ffi::OsString, fs, io, path::PathBuf, time::Instant};
 
 const ALPHABET: usize = 256;
 const JEFFREYS_ALPHA: f64 = 0.5;
@@ -360,22 +360,14 @@ fn run(args: &Args) -> io::Result<()> {
     Ok(())
 }
 
-fn main() -> ExitCode {
-    let result = parse(env::args_os().skip(1)).and_then(|args| match args {
+pub fn command(args: Vec<OsString>) -> io::Result<()> {
+    parse(args).and_then(|args| match args {
         None => {
             println!("{HELP}");
             Ok(())
         }
         Some(args) => run(&args),
-    });
-
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("context-fit: {error}");
-            ExitCode::FAILURE
-        }
-    }
+    })
 }
 
 #[cfg(test)]

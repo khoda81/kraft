@@ -14,12 +14,10 @@
 //! length ceiling while retaining integer-sort performance.
 
 use std::{
-    env,
     ffi::OsString,
     fs::{self, File},
     io::{self, BufWriter, Write},
     path::{Path, PathBuf},
-    process::ExitCode,
     time::Instant,
 };
 
@@ -632,22 +630,14 @@ fn run(args: &Args) -> io::Result<()> {
     Ok(())
 }
 
-fn main() -> ExitCode {
-    let result = parse(env::args_os().skip(1)).and_then(|args| match args {
+pub fn command(args: Vec<OsString>) -> io::Result<()> {
+    parse(args).and_then(|args| match args {
         None => {
             println!("{HELP}");
             Ok(())
         }
         Some(args) => run(&args),
-    });
-
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("ngram-fit: {error}");
-            ExitCode::FAILURE
-        }
-    }
+    })
 }
 
 #[cfg(test)]

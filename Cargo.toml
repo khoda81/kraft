@@ -1,4 +1,5 @@
 [package]
+autobins = false
 name = "kraft"
 version = "0.1.0"
 edition = "2024"
@@ -16,3 +17,7 @@ debug = 1
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 num-bigint = "0.5.1"
+
+[[bin]]
+name = "kraft"
+path = "src/main.rs"

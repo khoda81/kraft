@@ -2,7 +2,6 @@ use std::{
     fs::{self, File},
     io::{self, BufReader, BufWriter, Read, Write},
     path::{Path, PathBuf},
-    process::ExitCode,
     time::Instant,
 };
 
@@ -327,15 +326,18 @@ fn run(args: &Args) -> io::Result<()> {
     Ok(())
 }
 
-fn main() -> ExitCode {
-    let args = Args::parse();
-    let result = args.validate().and_then(|()| run(&args));
-
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("dfa-bayes: {error}");
-            ExitCode::FAILURE
+pub fn command(args: Vec<std::ffi::OsString>) -> io::Result<()> {
+    let argv = std::iter::once(std::ffi::OsString::from("kraft infer dfa-prior")).chain(args);
+    let args = match Args::try_parse_from(argv) {
+        Ok(args) => args,
+        Err(error) if matches!(
+            error.kind(),
+            clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+        ) => {
+            print!("{error}");
+            return Ok(());
         }
-    }
+        Err(error) => return Err(invalid(error.to_string())),
+    };
+    args.validate().and_then(|()| run(&args))
 }

@@ -9,8 +9,8 @@
 //! The 512-bit gap is only 64 bytes over the entire corpus.
 
 use std::{
-    cmp::Ordering, collections::HashSet, env, ffi::OsString, fs, io, path::PathBuf,
-    process::ExitCode, thread, time::Instant,
+    cmp::Ordering, collections::HashSet, ffi::OsString, fs, io, path::PathBuf,
+    thread, time::Instant,
 };
 
 const ALPHABET: usize = 256;
@@ -706,22 +706,14 @@ fn run(args: &Args) -> io::Result<()> {
     Ok(())
 }
 
-fn main() -> ExitCode {
-    let result = parse(env::args_os().skip(1)).and_then(|args| match args {
+pub fn command(args: Vec<OsString>) -> io::Result<()> {
+    parse(args).and_then(|args| match args {
         None => {
             println!("{HELP}");
             Ok(())
         }
         Some(args) => run(&args),
-    });
-
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(error) => {
-            eprintln!("dfa-fit: {error}");
-            ExitCode::FAILURE
-        }
-    }
+    })
 }
 
 #[cfg(test)]
