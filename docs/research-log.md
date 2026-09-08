@@ -160,3 +160,9 @@ The discussion explored Bayesian mixtures over programs, allocating compute acco
 - Removed concrete sparse-DFA leaves and the trusted internal constructor from the anytime path. Once all transitions relevant to the observed prefix are determined, the whole completion region is resolved exactly as one joint mass.
 - Replaced quadratic prefix rescanning for Dirichlet state counts with linear-time sparse hash-map counts.
 - Changed compact range formatting to adapt precision to interval width, so tightening certificates reveal additional decimals automatically.
+
+## 2026-09-08 — Instrument anytime convergence
+
+Source audit identified broad likelihood bounds, structural splits with no immediate bound reduction, and permanently opaque large-state regions as obstacles to convergence. Added diagnostics to distinguish these mechanisms experimentally: precise interval endpoints and gains, upper mass and forced-prefix depth by region category, refinement counts, and likelihood-bound scan bytes. Detailed diagnostics reuse cached depth metadata and do not replay trajectories; aggregation remains linear in frontier size. Scheduling and Bayesian target are unchanged.
+
+Fixed the CLI loop for already-resolved empty/one-byte inputs and bounded input reading by the requested prefix. Added regression checks for diagnostic accounting and exhausted short-input searches. No convergence experiment is claimed. Rust tests, formatting, and clippy could not run: no toolchain is installed, and the attempted toolchain-host network request was cancelled at approval.

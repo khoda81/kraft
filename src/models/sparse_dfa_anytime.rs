@@ -214,7 +214,7 @@ impl SparseRegion {
         }
     }
 
-    fn ln_likelihood_bound(&self, data: &[u8], suffix_upper: &[f64]) -> (f64, bool) {
+    fn ln_likelihood_bound(&self, data: &[u8], suffix_upper: &[f64]) -> (f64, bool, usize) {
         let mut totals = HashMap::<u16, u32>::new();
         let mut counts = HashMap::<(u16, u8), u32>::new();
         let mut state = 0_u16;
@@ -228,15 +228,27 @@ impl SparseRegion {
             *counts.entry((state, byte)).or_default() += 1;
 
             if i + 1 == data.len() {
-                return (ln_likelihood, true);
+                return (ln_likelihood, true, i + 1);
             }
             let Some(next) = self.forced_destination(state, byte) else {
-                return (ln_likelihood + suffix_upper[i + 1], false);
+                return (ln_likelihood + suffix_upper[i + 1], false, i + 1);
             };
             state = next;
         }
 
-        (0.0, true)
+        (0.0, true, 0)
+    }
+
+    fn kind(&self) -> usize {
+        match self {
+            Self::StatesTail(_) => 0,
+            Self::States(_) => 1,
+            Self::Topology(_) => 2,
+            Self::ExceptionTail(_) => 3,
+            Self::Keys(_) => 4,
+            Self::Destination(_) => 5,
+            Self::Opaque(_) => 6,
+        }
     }
 
     fn refinable(&self) -> bool {
@@ -283,21 +295,31 @@ fn universal_suffix_upper(data: &[u8]) -> Vec<f64> {
     suffix
 }
 
-fn node(region: SparseRegion, data: &[u8], suffix_upper: &[f64]) -> FrontierNode<SparseRegion> {
+fn evaluated_node(
+    region: SparseRegion,
+    data: &[u8],
+    suffix_upper: &[f64],
+) -> (FrontierNode<SparseRegion>, usize) {
     let ln_prior = region.ln_prior_mass();
-    let (ln_likelihood, exact) = region.ln_likelihood_bound(data, suffix_upper);
+    let (ln_likelihood, exact, depth) = region.ln_likelihood_bound(data, suffix_upper);
     let evidence = if exact {
         LogEvidenceBounds::exact(ln_prior + ln_likelihood)
     } else {
         LogEvidenceBounds::unresolved(ln_prior + ln_likelihood)
     };
-    FrontierNode { region, evidence }
+    (FrontierNode { region, evidence }, depth)
+}
+
+#[cfg(test)]
+fn node(region: SparseRegion, data: &[u8], suffix_upper: &[f64]) -> FrontierNode<SparseRegion> {
+    evaluated_node(region, data, suffix_upper).0
 }
 
 #[derive(Debug, Clone)]
 struct WorkItem {
     node: FrontierNode<SparseRegion>,
     order: usize,
+    forced_prefix_bytes: usize,
 }
 
 impl PartialEq for WorkItem {
@@ -324,6 +346,38 @@ impl Ord for WorkItem {
     }
 }
 
+/// One unresolved region category. Shares refer to upper bounds, not posterior mass.
+#[derive(Debug, Clone)]
+pub struct RegionDiagnostics {
+    pub kind: &'static str,
+    pub regions: usize,
+    pub ln_upper: f64,
+    pub upper_share: f64,
+    pub mean_forced_prefix_bytes: f64,
+    pub upper_weighted_forced_prefix_bytes: f64,
+    pub refinements: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnytimeDiagnostics {
+    pub bounds: LogEvidenceBounds,
+    pub ln_unresolved_upper: f64,
+    /// Bytes evaluated in likelihood-bound scans, including repeated replay.
+    /// Excludes transition-only scans in first_ambiguous and reporting work.
+    pub bound_scan_bytes: u64,
+    pub categories: Vec<RegionDiagnostics>,
+}
+
+const REGION_KINDS: [&str; 7] = [
+    "states_tail",
+    "states",
+    "topology",
+    "exception_tail",
+    "keys",
+    "destination",
+    "opaque",
+];
+
 #[derive(Debug, Clone)]
 pub struct SparseDfaAnytime {
     data: Vec<u8>,
@@ -334,12 +388,14 @@ pub struct SparseDfaAnytime {
     next_order: usize,
     steps: usize,
     resolved_regions: usize,
+    refinements: [usize; 7],
+    bound_scan_bytes: u64,
 }
 
 impl SparseDfaAnytime {
     pub fn new(data: &[u8]) -> Self {
         let suffix_upper = universal_suffix_upper(data);
-        let root = node(
+        let (root, depth) = evaluated_node(
             SparseRegion::StatesTail(StateCountTail::root()),
             data,
             &suffix_upper,
@@ -353,12 +409,15 @@ impl SparseDfaAnytime {
             next_order: 0,
             steps: 0,
             resolved_regions: 0,
+            refinements: [0; 7],
+            bound_scan_bytes: 0,
         };
-        search.push(root);
+        search.push(root, depth);
         search
     }
 
-    fn push(&mut self, node: FrontierNode<SparseRegion>) {
+    fn push(&mut self, node: FrontierNode<SparseRegion>, depth: usize) {
+        self.bound_scan_bytes += depth as u64;
         if node.evidence.is_exact() {
             self.resolved_ln_mass = log_add_exp(self.resolved_ln_mass, node.evidence.ln_lower());
             self.resolved_regions += 1;
@@ -366,6 +425,7 @@ impl SparseDfaAnytime {
             self.work.push(WorkItem {
                 node,
                 order: self.next_order,
+                forced_prefix_bytes: depth,
             });
             self.next_order += 1;
         } else {
@@ -378,8 +438,10 @@ impl SparseDfaAnytime {
             return false;
         };
 
+        self.refinements[parent.node.region.kind()] += 1;
         for region in parent.node.region.refine(&self.data) {
-            self.push(node(region, &self.data, &self.suffix_upper));
+            let (child, depth) = evaluated_node(region, &self.data, &self.suffix_upper);
+            self.push(child, depth);
         }
         self.steps += 1;
         true
@@ -394,18 +456,70 @@ impl SparseDfaAnytime {
     }
 
     pub fn bounds(&self) -> LogEvidenceBounds {
-        let mut lower = self.resolved_ln_mass;
         let mut upper = self.resolved_ln_mass;
-        for bound in self
+        for node in self.work.iter().map(|item| &item.node).chain(&self.opaque) {
+            upper = log_add_exp(upper, node.evidence.ln_upper());
+        }
+        LogEvidenceBounds::new_internal(self.resolved_ln_mass, upper)
+    }
+
+    pub fn has_work(&self) -> bool {
+        !self.work.is_empty()
+    }
+
+    /// Aggregate cached metadata without replaying any trajectories.
+    pub fn diagnostics(&self) -> AnytimeDiagnostics {
+        let mut categories: Vec<_> = REGION_KINDS
+            .iter()
+            .enumerate()
+            .map(|(i, &kind)| RegionDiagnostics {
+                kind,
+                regions: 0,
+                ln_upper: f64::NEG_INFINITY,
+                upper_share: 0.0,
+                mean_forced_prefix_bytes: 0.0,
+                upper_weighted_forced_prefix_bytes: 0.0,
+                refinements: self.refinements[i],
+            })
+            .collect();
+        let mut total_upper = self.resolved_ln_mass;
+        for (node, depth) in self
             .work
             .iter()
-            .map(|item| &item.node.evidence)
-            .chain(self.opaque.iter().map(|node| &node.evidence))
+            .map(|item| (&item.node, item.forced_prefix_bytes))
+            // Opaque regions always stop after the first emission.
+            .chain(self.opaque.iter().map(|node| (node, 1)))
         {
-            lower = log_add_exp(lower, bound.ln_lower());
-            upper = log_add_exp(upper, bound.ln_upper());
+            let category = &mut categories[node.region.kind()];
+            let upper = node.evidence.ln_upper();
+            total_upper = log_add_exp(total_upper, upper);
+            let combined = log_add_exp(category.ln_upper, upper);
+            category.upper_weighted_forced_prefix_bytes =
+                (category.ln_upper - combined).exp()
+                    * category.upper_weighted_forced_prefix_bytes
+                    + (upper - combined).exp() * depth as f64;
+            category.ln_upper = combined;
+            category.regions += 1;
+            category.mean_forced_prefix_bytes += depth as f64;
         }
-        LogEvidenceBounds::new_internal(lower, upper)
+        let unresolved = categories
+            .iter()
+            .fold(f64::NEG_INFINITY, |sum, c| log_add_exp(sum, c.ln_upper));
+        for category in &mut categories {
+            if category.regions != 0 {
+                category.mean_forced_prefix_bytes /= category.regions as f64;
+                category.upper_share = (category.ln_upper - unresolved).exp();
+            }
+        }
+        AnytimeDiagnostics {
+            bounds: LogEvidenceBounds::new_internal(
+                self.resolved_ln_mass,
+                total_upper,
+            ),
+            ln_unresolved_upper: unresolved,
+            bound_scan_bytes: self.bound_scan_bytes,
+            categories,
+        }
     }
 
     pub fn steps(&self) -> usize {
@@ -425,6 +539,47 @@ impl SparseDfaAnytime {
 mod tests {
     use super::*;
     use crate::models::sparse_dfa::{SparseDfa, SparseOverride};
+
+    #[test]
+    fn diagnostics_account_for_frontier_and_work_without_changing_search() {
+        let mut search = SparseDfaAnytime::new(b"abacaba");
+        search.run(500);
+        let before = search.bounds();
+        let diagnostic = search.diagnostics();
+        assert_eq!(before, diagnostic.bounds);
+        assert_eq!(
+            diagnostic.categories.iter().map(|c| c.regions).sum::<usize>(),
+            search.regions()
+        );
+        assert_eq!(
+            diagnostic.categories.iter().map(|c| c.refinements).sum::<usize>(),
+            search.steps()
+        );
+        let shares: f64 = diagnostic.categories.iter().map(|c| c.upper_share).sum();
+        assert!((shares - 1.0).abs() < 1e-12);
+        assert!(diagnostic.bound_scan_bytes >= search.steps() as u64);
+        for category in diagnostic.categories.iter().filter(|c| c.regions > 0) {
+            assert!((1.0..=7.0).contains(&category.mean_forced_prefix_bytes));
+            assert!(category.upper_weighted_forced_prefix_bytes >= 1.0 - 1e-12);
+            assert!(category.upper_weighted_forced_prefix_bytes <= 7.0 + 1e-12);
+        }
+        assert_eq!(search.bounds(), before);
+    }
+
+    #[test]
+    fn short_inputs_are_resolved_without_refinement() {
+        for data in [&b""[..], &b"a"[..]] {
+            let mut search = SparseDfaAnytime::new(data);
+            assert!(!search.has_work());
+            assert!(!search.step());
+            assert_eq!(search.steps(), 0);
+            let diagnostic = search.diagnostics();
+            assert!(diagnostic.bounds.is_exact());
+            assert_eq!(diagnostic.ln_unresolved_upper, f64::NEG_INFINITY);
+            assert_eq!(diagnostic.bound_scan_bytes, data.len() as u64);
+            assert!(diagnostic.categories.iter().all(|c| c.upper_share == 0.0));
+        }
+    }
 
     fn n2_stay_k1_region() -> KeySetRegion {
         let (_, tail) = StateCountTail::root().split();

@@ -1,4 +1,4 @@
-use std::{fs, num::NonZeroUsize, path::PathBuf, process::ExitCode, time::Instant};
+use std::{fs::File, io::Read, num::NonZeroUsize, path::PathBuf, process::ExitCode, time::Instant};
 
 use clap::Parser;
 use kraft::{baselines::Kt, evaluate, models::sparse_dfa_anytime::SparseDfaAnytime};
@@ -19,71 +19,114 @@ struct Args {
     /// Print one progress row every N refinements.
     #[arg(long, default_value = "1000")]
     report_every: NonZeroUsize,
+
+    /// Print unresolved upper-bound mass and forced-prefix depth by region type to stderr.
+    #[arg(long)]
+    diagnostics: bool,
 }
 
-fn code_bounds(search: &SparseDfaAnytime) -> (f64, f64) {
-    let bounds = search.bounds();
-    let lower = -bounds.ln_upper();
-    let upper = if bounds.ln_lower() == f64::NEG_INFINITY {
-        f64::INFINITY
+#[derive(Clone, Copy)]
+struct ReportSnapshot {
+    lower: f64,
+    upper: f64,
+    steps: usize,
+}
+
+fn number(value: f64) -> String {
+    if value.is_nan() {
+        "NA".to_owned()
     } else {
-        -bounds.ln_lower()
-    };
-    (lower, upper)
-}
-
-fn range(lower: f64, upper: f64) -> String {
-    if upper.is_infinite() {
-        return format!("{lower:.3}..inf");
+        format!("{value:.9}")
     }
-    let width = upper - lower;
-    if width == 0.0 {
-        return format!("{lower:.6}");
-    }
-
-    let places = 1 - width.log10().floor() as i32;
-    let scale = 10_f64.powi(places);
-    let lower = (lower * scale).floor() / scale;
-    let upper = (upper * scale).ceil() / scale;
-    let decimals = places.max(0) as usize;
-    format!("{lower:.decimals$}..{upper:.decimals$}")
 }
 
-fn report(search: &SparseDfaAnytime, uniform_nats: f64, kt_nats: f64, elapsed: f64) {
-    let (lower, upper) = code_bounds(search);
-    let ratio_uniform_lower = if upper.is_infinite() {
-        0.0
-    } else {
-        uniform_nats / upper
+fn report(
+    search: &SparseDfaAnytime,
+    baseline_nats: (f64, f64),
+    elapsed: f64,
+    work_seconds: f64,
+    previous: Option<ReportSnapshot>,
+    detailed: bool,
+) -> ReportSnapshot {
+    let diagnostic = search.diagnostics();
+    let lower = -diagnostic.bounds.ln_upper();
+    let upper = -diagnostic.bounds.ln_lower();
+    let snapshot = ReportSnapshot {
+        lower,
+        upper,
+        steps: search.steps(),
     };
-    let ratio_uniform_upper = uniform_nats / lower;
-    let ratio_kt_lower = if upper.is_infinite() {
-        0.0
+    let improvement = previous.map_or(f64::NAN, |old| {
+        if old.upper.is_finite() && upper.is_finite() {
+            (lower - old.lower) + (old.upper - upper)
+        } else {
+            f64::NAN
+        }
+    });
+    let steps = previous.map_or(0, |old| search.steps() - old.steps);
+    let per_step = if steps == 0 {
+        f64::NAN
     } else {
-        kt_nats / upper
+        improvement / steps as f64
     };
-    let ratio_kt_upper = kt_nats / lower;
-
+    let per_second = if work_seconds > 0.0 {
+        improvement / work_seconds
+    } else {
+        f64::NAN
+    };
+    let (uniform, kt) = baseline_nats;
+    let values = [
+        lower,
+        upper,
+        upper - lower,
+        uniform / upper,
+        uniform / lower,
+        kt / upper,
+        kt / lower,
+        previous.map_or(f64::NAN, |old| lower - old.lower),
+        previous.map_or(f64::NAN, |old| old.upper - upper),
+        per_step,
+        per_second,
+        elapsed,
+        work_seconds,
+    ];
     println!(
-        "{}\t{}\t{}\t{}\t{}\t{}\t{:.3}",
+        "{}\t{}\t{}\t{}\t{}",
         search.steps(),
         search.regions(),
         search.resolved_regions(),
-        range(lower, upper),
-        range(ratio_uniform_lower, ratio_uniform_upper),
-        range(ratio_kt_lower, ratio_kt_upper),
-        elapsed,
+        diagnostic.bound_scan_bytes,
+        values.into_iter().map(number).collect::<Vec<_>>().join("\t"),
     );
+    if detailed {
+        eprintln!("diagnostics steps={} ln_unresolved_upper={} (shares are fractions of summed upper bounds, not posterior probabilities)", search.steps(), number(diagnostic.ln_unresolved_upper));
+        eprintln!("kind\tregions\tln_upper\tupper_share\tmean_forced_bytes\tupper_weighted_forced_bytes\trefinements");
+        for category in diagnostic.categories {
+            eprintln!(
+                "{}\t{}\t{}\t{}\t{:.3}\t{:.3}\t{}",
+                category.kind,
+                category.regions,
+                number(category.ln_upper),
+                number(category.upper_share),
+                category.mean_forced_prefix_bytes,
+                category.upper_weighted_forced_prefix_bytes,
+                category.refinements,
+            );
+        }
+    }
+    snapshot
 }
 
 fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
-    let mut data = fs::read(&args.path)?;
-    data.truncate(args.limit);
+    let started = Instant::now();
+    let mut data = Vec::new();
+    File::open(&args.path)?
+        .take(args.limit as u64)
+        .read_to_end(&mut data)?;
 
     let uniform_nats = data.len() as f64 * 8.0 * std::f64::consts::LN_2;
     let kt_nats = evaluate(&data[..], &mut Kt::default())?.total_nats;
     let mut search = SparseDfaAnytime::new(&data);
-    let started = Instant::now();
 
     println!("input: {:?}", args.path);
     println!("prefix_bytes: {}", data.len());
@@ -92,27 +135,33 @@ fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         "note: this binary certifies joint evidence; it is not yet the finite-compute streaming codec"
     );
     println!();
-    println!("steps\tregions\tresolved_regions\tcode_nats\tratio_uniform\tratio_kt\telapsed_s");
-    report(
+    println!("steps\tregions\tresolved_regions\tbound_scan_bytes\tcode_lower_nats\tcode_upper_nats\tgap_nats\tratio_uniform_lower\tratio_uniform_upper\tratio_kt_lower\tratio_kt_upper\tlower_gain_nats\tupper_gain_nats\tgap_gain_nats_per_step\tgap_gain_nats_per_work_s\telapsed_s\twork_s");
+    let mut previous = report(
         &search,
-        uniform_nats,
-        kt_nats,
+        (uniform_nats, kt_nats),
         started.elapsed().as_secs_f64(),
+        0.0,
+        None,
+        args.diagnostics,
     );
 
     let report_every = args.report_every.get();
-    while search.steps() < args.steps {
+    while search.steps() < args.steps && search.has_work() {
         let remaining = args.steps - search.steps();
+        let work_started = Instant::now();
         search.run(remaining.min(report_every));
-        report(
+        let work_seconds = work_started.elapsed().as_secs_f64();
+        previous = report(
             &search,
-            uniform_nats,
-            kt_nats,
+            (uniform_nats, kt_nats),
             started.elapsed().as_secs_f64(),
+            work_seconds,
+            Some(previous),
+            args.diagnostics,
         );
-        if remaining < report_every {
-            break;
-        }
+    }
+    if !search.has_work() {
+        eprintln!("stopped: no refinable regions remain (opaque mass, if any, is still included)");
     }
 
     Ok(())
@@ -133,10 +182,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ranges_are_compact_and_outward() {
-        assert_eq!(range(1.012144404961, 1.537038328816), "1.01..1.54");
-        assert_eq!(range(2382.265, 3617.699), "2300..3700");
-        assert_eq!(range(2382.265, 2382.703), "2382.26..2382.71");
-        assert_eq!(range(0.0, f64::INFINITY), "0.000..inf");
+    fn diagnostic_numbers_preserve_small_changes_and_undefined_values() {
+        assert_eq!(number(2382.265), "2382.265000000");
+        assert_eq!(number(f64::NAN), "NA");
+        assert_eq!(number(f64::INFINITY), "inf");
     }
 }

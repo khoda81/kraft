@@ -79,3 +79,21 @@ cargo run --release --locked --bin sparse-dfa-anytime -- \
 ```
 
 It reports lower/upper bounds on the exact Bayesian mixture prequential cost of the supplied prefix. The current unresolved-region likelihood upper bound is deliberately conservative, so start with short prefixes while validating refinement behavior. This binary is not yet the bounded-compute streaming codec: it certifies the exact target `-ln M(prefix)` after seeing the prefix rather than emitting an approximate causal probability before each byte.
+
+## Anytime convergence diagnostics
+
+Run the same prefix and budget with detailed reporting:
+
+```sh
+cargo run --release --locked --bin sparse-dfa-anytime -- \
+  ../text-preq-encoding/preq-encoding/data/enwik/enwik8 \
+  --limit 1000 --steps 100000 --report-every 1000 --diagnostics
+```
+
+The main stdout table reports code endpoints and gap in nats to nine decimal places, coding ratios, gains since the previous report, and gap reduction per refinement and per search second. Decimal output is diagnostic precision, not a floating-point error certificate. `NA` means undefined (including initial rates, empty-input ratios, or rates across an infinite initial gap).
+
+Detailed stderr tables report each unresolved region category's count, log upper mass, share of summed unresolved upper bounds, mean forced-prefix bytes, upper-mass-weighted mean forced-prefix bytes, and cumulative refinements. A forced prefix includes the emission immediately before the first undecided transition. Upper shares are **not posterior probabilities**. Compare shares with refinement counts: many refinements with persistently high upper mass and short forced prefixes suggest insufficient bound tightening.
+
+`bound_scan_bytes` counts cumulative bytes visited by likelihood-bound evaluations, including root initialization and repeated replay; it excludes transition-only ambiguity scans and suffix preprocessing. `work_s` measures only the last search batch. `elapsed_s` starts before input loading and includes setup and earlier reporting, so reporting overhead is not hidden in total runtime. Reporting still scans the frontier; use a larger report interval for throughput measurements.
+
+A separate table format replaces the old compact interval columns. The command stops when its budget is reached or no refinable regions remain; any opaque mass is still included in the final bounds.

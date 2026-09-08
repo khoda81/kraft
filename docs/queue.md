@@ -37,3 +37,8 @@ Updated: 2026-09-07. Work from the first unblocked item. Historical experiment r
 
 - [ ] H1 — Choose a license before encouraging external reuse or publishing the crate.
 - [ ] H2 — Select a durable artifact backend before generating outputs too expensive to reproduce.
+
+## Diagnostic follow-up (2026-09-08)
+
+- [x] Expose precise anytime evidence intervals, per-category upper mass, forced-prefix lengths, refinement counts, and work-normalized progress; stop exhausted frontiers.
+- [ ] Run Rust validation gates and repeat the 1,000-byte enwik8 experiment with `--diagnostics`; use the mass/depth breakdown to choose the next bound or representation change.

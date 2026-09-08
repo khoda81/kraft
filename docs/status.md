@@ -50,3 +50,9 @@ Ordinary n-grams are finite-state models, but the current sparse transition-desc
 The sparse anytime engine no longer enumerates override keys in lexicographic description order. For fixed `N`, topology, and `K`, untouched keys are exchangeable under the uniform `K`-subset prior. The region stores only remaining keys, remaining overrides, and assignments for keys actually queried by the observed trajectory. When the prefix first reaches an undecided `(state, byte)` key, the exact conditional split is `(r-k)/r` for default and `k/r` for override; destination choice is refined only on the override branch.
 
 This is exact Rao-Blackwellization / trajectory weighted model counting: all unqueried key identities and destinations remain analytically marginalized. Likelihood-bound evaluation was also reduced from quadratic prefix rescanning to linear-time sparse emission counts. Concrete DFA leaves are no longer part of this certificate path; when every transition queried by the prefix is forced, the entire remaining completion region is resolved symbolically.
+
+### Anytime convergence diagnostics (2026-09-08)
+
+The anytime CLI now reports precise code endpoints, interval width, endpoint gains, and interval-width improvement per refinement and per search second. `--diagnostics` adds unresolved upper mass by region category, ordinary and upper-mass-weighted forced-prefix length, and cumulative refinement counts. These shares describe upper bounds, not inferred posterior probabilities. Likelihood scan-byte counts include repeated bound replay but exclude transition-only scans. Empty and one-byte inputs stop when the frontier has no refinable work. See [diagnostic usage](harness.md#anytime-convergence-diagnostics).
+
+This is instrumentation, not a convergence improvement: the prior, refinement order, and likelihood bounds remain unchanged. Rust validation is pending because the audit workspace has no Rust toolchain.
