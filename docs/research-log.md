@@ -1,5 +1,47 @@
 # Research log
 
+## 2026-09-06 — Symbolic exact DFA evidence
+
+**Goal:** share computation across exact N = 2 DFA hypotheses rather than only sharing their stored histories.
+
+**Work:** added `dfa-wmc`, a reduced ordered ADD evaluator over uniform Boolean transition-table variables. The symbolic recurrence carries the hidden state and state-one sufficient counts; the Dirichlet-1/2 joint log likelihood is rebuilt from count ADDs in a fixed factor order and averaged over the transition variables. Hash-consing shares identical algebraic subfunctions. Exact mark-and-rebuild garbage collection preserves all live roots and retries a node-limited observation once. Added independent complete-table enumeration tests, leaf-oracle evidence comparisons, GC continuation coverage, symbolic-node/payload/RSS diagnostics, and explicit node guards (D017). Discovery is now the default leaf quotient; predictive remains available for regressions.
+
+**Results:** the ADD matched the persistent leaf oracle at every enwik8 prefix through byte 22, with maximum observed difference about `2.42e-12` nat. At byte 26 it used 7,529 live nodes, about 10 MB RSS, and 0.049 seconds, versus 9,289,728 leaves, 1.81 GB RSS, and 109.419 seconds for the leaf run. A ten-million-node workspace reached byte 44. A thirty-million-node workspace reached byte 46 with 5,612,035 live nodes, then exceeded the guard while constructing byte 47; see [E0c](experiments/E0-symbolic-dfa-wmc.md).
+
+**Interpretation:** exact cross-leaf algebraic reuse is substantial and extends the tractable prefix by twenty bytes, but byte 64 remains unmet. The immediate symbolic bottleneck is temporary ADD apply width: byte 47 needs more than 24 million new intermediate nodes even though only 5.61 million nodes are live after byte 46. Variable ordering and within-observation factor scheduling/collection are the next controlled experiments.
+
+
+## 2026-09-06 — Persistent exact partial-DFA state
+
+**Goal:** quantify how much of the exact N = 2 posterior's memory growth came from cloning historical transition and emission state into every branch.
+
+**Work:** replaced per-component edge vectors with immutable eight-byte transition nodes in a `u32`-indexed parent-linked arena. After a transition-only measurement showed cloned sparse emission statistics dominating payload, applied the same representation to emission observations and packed the common small-N logical-to-storage state mapping inline. Compact component fingerprints are only lookup accelerators; collision resolution compares semantic transition and emission contents through the arenas. Predictive canonicalization changes logical mappings without rebuilding shared histories. Added arena-node/RSS diagnostics and a vector-backed test oracle covering both quotient modes, sequential probabilities, evidence, component counts, retention, and coding ratios (D016).
+
+**Results:** at the existing byte-22 / 1,032,192-component point, the payload estimate fell from 457.310 MB to 107.872 MB, a 76.41% reduction. The 20,840,448 logical transition records across leaves used 2,064,382 transition nodes; emission statistics used 1,205,503 update nodes. With a ten-million guard, both discovery and predictive quotients reached byte 26 / 9,289,728 components and stopped before byte 27's 10,838,016 prospective children. Discovery used 1,071.514 MB estimated payload and 1,809.519 MB sampled RSS. Predictive produced the same evidence-derived results and component count but was slower. See [E0b](experiments/E0-persistent-dfa-state.md).
+
+**Interpretation:** duplicated physical histories were a large but not fundamental part of the explosion. Persistent storage permits roughly nine times the byte-22 leaf count in under 2 GB RSS, while exact retention still requires 6.21 million leaves at epsilon = 0.01 nat. Component count and leaf-wise CPU are now the limiting mechanisms. A weighted decision/arithmetic DAG is a possible separate next experiment; it was not implemented.
+
+
+## 2026-09-06 — Predictive sufficient-state quotient
+
+**Observation:** the first N=2 discovery-quotient enwik8 run reached 1,032,192 exact components after only 22 bytes and required 864,578 components for epsilon=0.01 nat (1,013,545 for epsilon=0.001). The user noted that paths differing only by state naming should not be distinct hypotheses, motivating a stronger exact quotient.
+
+**Work:** added a predictive quotient that canonicalizes the complete future-relevant sufficient machine state under permutations of discovered state identities after every update. The current state is distinguished; historical state names, including which state was originally called A or B, are forgotten. Added a discovery control mode, generated-versus-merged child diagnostics, and exact tests requiring the two quotient modes to produce identical predictive probabilities and marginal evidence while predictive uses no more components. Brute-force permutation canonicalization is intentionally restricted to at most eight states for this oracle experiment.
+
+**Next:** rerun the N=2 prefix with `--quotient predictive` and compare exact component growth against the recorded discovery baseline. If the reduction is large, pursue a scalable graph/sufficient-state canonicalizer before approximate pruning.
+
+
+## 2026-09-06 — Exact lazy partial-DFA posterior oracle
+
+**Goal:** measure whether a Bayesian posterior over byte-input DFA transition tables concentrates enough that a certified epsilon-KL truncation could make the otherwise exponential posterior practical.
+
+**Work:** added an exact fixed-N oracle over all labeled transition tables with lazy edge instantiation, canonical aggregation of unused state labels with exact multiplicity, sparse per-state Dirichlet-1/2 byte emissions, exact component merging, retention diagnostics for the minimum top-mass set satisfying D_KL(Q || P) <= epsilon, and a dedicated `dfa-posterior` CLI. The first implementation intentionally does not prune; it measures whether pruning would be worthwhile before adding frontier/replay machinery.
+
+**Validation:** CI run 34040037792 passed on pinned/stable Rust 1.98.1. Tests verify that N=1 exactly reproduces the byte KT unigram, unused-label aggregation preserves 1/N versus (N-k)/N branch masses, the retained-mass KL identity is correct, and predictions remain normalized after branching.
+
+**Next:** run N=1 and N=2 on short enwik8 prefixes and inspect exact component growth versus retained component count at epsilon values such as 1e-2 and 1e-3.
+
+
 ## 2026-09-06 — Rust 1.98.1 becomes the project floor
 
 **Request:** remove the Rust 1.85 compatibility target and move active development completely to Rust 1.98.1.
@@ -63,3 +105,103 @@
 This entry is reconstructed from conversation context, not a contemporaneous experiment record.
 
 The discussion explored Bayesian mixtures over programs, allocating compute according to description length and predictive evidence, and a computation-power ladder from finite-state objects toward richer machines. It identified that changing log base consistently does not add a free parameter when the score is literally Bayesian weight divided by compute. KRAFT and Rust/CPU-first were selected. No measurements or implementation are attributed to this discussion.
+
+## 2026-09-07 — Prequential objective cleanup and anytime rewrite bootstrap
+
+- Made causal Bayesian-mixture prequential coding the canonical KRAFT score in `docs/prequential.md`.
+- Clarified that fixed structures selected using the complete evaluation corpus are hindsight/oracle diagnostics; candidate data cost plus negative log prior is a valid single-model upper bound on mixture cost, not the measured KRAFT code.
+- Rewrote architecture/status/queue around prior-mass-preserving anytime inference: structural model choices stay inside the prior; compute only controls refinement and precision.
+- Recorded the audited `N=8`, `next`, `K<=256` sparse-DFA run as E0e. The best candidate again hit the complexity ceiling and the `K=255 -> 256` step still improved the joint bound, motivating removal of semantic cutoffs.
+- Added `SparseDfaLearner`, a literal online `predict -> score -> observe` implementation, and a regression test requiring the optimized integrated-evidence scorer to match it for prespecified DFAs.
+- Renamed sparse search outputs to explicitly identify hindsight/oracle data costs and single-model mixture bounds.
+- Added the first generic anytime primitives: prior regions, log evidence bounds, frontier nodes, and `Partition` / `Tighten` / `Resolve` refinements. No scheduler is part of these semantics.
+
+## 2026-09-07 — Unbounded state-count region
+
+- Added `PositiveNat`, backed by `num-bigint::BigUint`, so structural naturals are not capped by machine integer width. Zero is excluded by the public construction API.
+- Added `StateCount` and `StateCountTail`; the root tail denotes all `N>=1` under `P(N)=1/[N(N+1)]`, and `split()` produces exact `N=n` plus the remaining `N>=n+1` tail.
+- Tests verify telescoping mass conservation over repeated splits and explicitly cross the `u64` boundary.
+- Simplified `anytime.rs` by removing internal defensive bound-validation machinery; arbitrary bound pairs are no longer publicly constructed.
+- Recorded the rewrite style rule: compact code, invariants by construction, defensive validation at external boundaries.
+
+## 2026-09-07 — Topology and exception-count prior regions
+
+- Exact state-count mass now partitions into the three current sparse-DFA topology descriptions with `P(topology)=1/3`.
+- Added a finite exception-count tail whose split preserves the normalized truncated prior `P(K|N) ∝ 1/((K+1)(K+2))` exactly.
+- The tail stores `K+1` and remaining support mass/count structure, so reaching the mathematical endpoint returns `None` rather than requiring a `K<=max` guard.
+- `N=1` naturally has only `K=0`; for `N>1` the support is `0..=256N`.
+- Tests compare every exact `K` mass for `N=1,2,8` against the existing concrete prior and verify each tail split conserves mass.
+
+## 2026-09-07 — First runnable sparse-DFA anytime certificate
+
+- Added exact recursive uniform-subset refinement for exception keys using include/exclude probabilities `k/r` and `(r-k)/r`, avoiding enumeration of `choose(256N,K)` children at once.
+- Added binary range refinement for each non-default destination; singleton ranges materialize trusted concrete sparse DFAs without re-validating invariants already guaranteed by the region construction.
+- Added a minimal largest-upper-mass frontier over the full sparse prior. Unresolved regions use the rigorous likelihood upper bound 1; concrete leaves contribute exact prior times integrated prequential evidence.
+- Added `sparse-dfa-anytime`, which reports an interval on exact mixture evidence and therefore on cumulative Bayesian prequential coding cost for a byte prefix.
+- Tests verify evidence intervals tighten monotonically and that empty-sequence upper evidence remains exactly unit mass while the prior is repeatedly partitioned.
+- This is an evidence-certificate experiment, not yet the finite-compute online codec; causal per-symbol approximate prediction and replay-aware tightening remain next.
+
+## 2026-09-07 — Heap scheduling and data-aware partial-region bounds
+
+- Replaced the linear largest-upper-bound frontier scan with a `BinaryHeap`. The same 100k-refinement, 8-byte run dropped from about 26.5 s to 0.044 s while reproducing the certificate to floating-point noise (~600x practical speedup).
+- A 16-byte, 1,000,000-refinement run on the heap version completed in about 1.73 s. It left `85.59998 <= C_mix <= 86.27307` nat and had resolved only 279 concrete models, confirming that prior-only structural refinement—not scheduler overhead—was the dominant inference weakness.
+- Added the universal Jeffreys bound as a suffix table and exact common-prefix scoring for partial sparse regions.
+- Key-set regions exploit keys already fixed absent/present; destination regions exploit fixed destinations and singleton destination ranges. For `N=2`, selected overrides also have a unique non-default destination and can be propagated immediately.
+- If all transitions needed by the observed prefix are forced, the region's likelihood is common to every completion. The engine then adds `P(region) * P(prefix|region)` directly to resolved evidence and discards the structural region instead of enumerating its leaves.
+- Exact resolved region masses are accumulated into one scalar rather than retained as frontier objects.
+- Added an exhaustive `N=2`, stay, `K=1` regression: an unresolved partial-region upper bound contains the exact sum over its concrete completions, and after all observed keys are fixed irrelevant the symbolic region mass equals the exhaustive sum.
+- Fixed and regression-tested an off-by-one in the universal suffix table discovered during this change.
+
+## 2026-09-08 — Data-directed sparse trajectory WMC
+
+- The 1000-byte certificate barely moved under description-order refinement, motivating a change of search variable rather than more scheduler tuning.
+- Replaced lexicographic key-set enumeration with data-directed branching: for `r` undecided keys and `k` remaining overrides, the next trajectory-requested key branches with exact prior masses `(r-k)/r` (default) and `k/r` (override).
+- Unqueried keys are never materialized. Their combinatorial subset mass is marginalized exactly; non-queried override destinations integrate out as well.
+- Removed concrete sparse-DFA leaves and the trusted internal constructor from the anytime path. Once all transitions relevant to the observed prefix are determined, the whole completion region is resolved exactly as one joint mass.
+- Replaced quadratic prefix rescanning for Dirichlet state counts with linear-time sparse hash-map counts.
+- Changed compact range formatting to adapt precision to interval width, so tightening certificates reveal additional decimals automatically.
+
+## 2026-09-08 — Instrument anytime convergence
+
+Source audit identified broad likelihood bounds, structural splits with no immediate bound reduction, and permanently opaque large-state regions as obstacles to convergence. Added diagnostics to distinguish these mechanisms experimentally: precise interval endpoints and gains, upper mass and forced-prefix depth by region category, refinement counts, and likelihood-bound scan bytes. Detailed diagnostics reuse cached depth metadata and do not replay trajectories; aggregation remains linear in frontier size. Scheduling and Bayesian target are unchanged.
+
+Fixed the CLI loop for already-resolved empty/one-byte inputs and bounded input reading by the requested prefix. Added regression checks for diagnostic accounting and exhausted short-input searches. No convergence experiment is claimed. Rust tests, formatting, and clippy could not run: no toolchain is installed, and the attempted toolchain-host network request was cancelled at approval.
+
+## 2026-09-08 — Local validation and certificate limitation follow-up
+
+The local workspace already contained diagnostic implementation commit `6792906a` and formatting-only working-copy changes. Preserved those changes and validated with `cargo fmt --all -- --check`, `cargo clippy --locked --all-targets --all-features -- -D warnings`, `cargo test --locked`, and `python3 scripts/check_docs.py`; all passed, including the process-level empty/one-byte termination regression.
+
+Documented the permanent `B(x)/65536` upper-evidence contribution from large-state descriptions and the absence of a floating-point enclosure guarantee (D023). The quoted 2391.851-nat endpoint ceiling is derived from the audit's initial bound, not a new measured run. No convergence or performance experiment was run; stronger bounds and comparative scheduler measurements remain pending.
+
+## 2026-09-08 — Measure n-gram gap and tail-action scheduling
+
+Ran [E0f](experiments/E0-anytime-diagnostic.md) on the first 1,000 enwik8 bytes at 100,000 refinements. Default scheduling spends 70,269 actions on the state tail and none on destinations. Added opt-in exposed-tail-mass priority, preserving the prior and evidence aggregation, and tested the same budget. It reduces the coding-cost upper endpoint from 3631.549819 to 3631.415556 nats, but increases elapsed time from 0.171 to 0.487 seconds in single samples. Baseline orders 0–4 range from 3661.633677 to 4300.779298 nats; order 0 wins this short prefix.
+
+The exact mixture therefore has a cost upper bound below these baselines on this prefix, but this does not deliver the finite-compute streaming posterior or establish longer-corpus superiority. Both intervals remain wider than 1246 nats. Default policy is unchanged (D024). Added both-policy monotonicity and exhaustive fixed-submixture resolution regressions. Next prioritize symbolic bounds and reusable causal inference rather than expanding the frontier faster.
+
+## 2026-09-08 — Exact causal generated-state emission partitions
+
+Implemented a generic finite-state feature interface, byte-history generator, and exact stop/split emission-partition posterior (D025). The new family shares emission parameters across full DFA states and preserves state-transition memory. It is distinct from the unbounded sparse prior. `partition-dfa` scores through the shared causal evaluator and reports joint evidence, nodes, node updates, and wall time.
+
+[E0g](experiments/E0-generated-partition-dfa.md) froze depth eight and both enwik8 prefixes before running. At 100k bytes the posterior beats the best fixed-order KT reference by 5000.119189 nats (1.781%); at 1M bytes it beats it by 118382.516111 nats (4.912%). Prediction-score totals agree with negative joint evidence to nine printed decimals. Timings were 0.208 and 2.523 seconds; all node updates are counted, and no replay/search occurs. Startup conventions differ and stronger smoothing controls remain necessary.
+
+Validated normalized predictions, depth-zero KT identity, all five partitions of a binary depth-two generator, joint/prequential equality, and chunk continuation. Formatting, clippy with warnings denied, and all locked tests pass. This is meaningful causal coding progress but not full-corpus superiority or an arbitrary learned DFA transition posterior.
+
+
+## 2026-09-09 — Dynamic exact prediction groups
+
+Implemented the user-requested merge-now/split-later representation (D026) as an
+opt-in fixed-N symbolic posterior. Reduced multi-way decision diagrams preserve
+state/transition/count alternatives; exact rational next-byte vectors share
+likelihood updates. Added direct stdin CLI, original-oracle comparison, operation
+counters, garbage collection and transactional resource-limit errors.
+
+[E0h](experiments/E0-dynamic-prediction-groups.md) records all 18 short runs. All
+predictions and evidence match within 1.421e-13 nats. In the three-state text case,
+likelihood work fell 17.6-fold, but symbolic maintenance increased median runtime
+about 42-fold. This demonstrates exact sharing, not an end-to-end speedup or an
+unbounded posterior. Keep the old backend and prioritize symbolic overhead (P2).
+
+95 tests, formatting, clippy with warnings denied, and documentation links pass
+on available Rust 1.91.1 with `--ignore-rust-version`. The repository's 1.98.1
+pin is unchanged; that compiler was unavailable for local validation.

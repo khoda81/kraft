@@ -2,9 +2,11 @@
 
 ## Evaluation contract
 
-For each symbol: form a prediction from the previously observed prefix, score the revealed symbol, then update model weights and states. Hyperparameters chosen with the evaluation stream invalidate a clean held-out claim. Fix exploratory/tuning streams separately from final reporting streams.
+The canonical scoring semantics live in [prequential.md](prequential.md). For every symbol: predict from the previously observed prefix, score the revealed symbol, then update model weights and states. The primary KRAFT score is the causal Bayesian-mixture prequential cost, not a model fitted or selected using the whole evaluation stream.
 
-The initial benchmark objective is **total prequential coding cost on the same raw byte stream**, as requested by the user. Report total nats, total bits, and coding ratio against a stated baseline. Coding ratio is `baseline_cost / model_cost`, so higher is better and the value is invariant to log base. Against the uniform-byte baseline it equals the ideal compression ratio. Timing is secondary and does not alter this objective. When comparing future schedulers, additionally compare at matched compute budgets; do not hide search cost behind model count.
+A fixed model chosen independently of the evaluated future may be scored prequentially as a baseline. A model selected after inspecting the whole stream is an **oracle/hindsight diagnostic** only. Its data cost must never be reported as the online coding cost of the structure-learning algorithm. Adding negative log prior to such a candidate gives a valid single-hypothesis upper bound on the Bayesian mixture cost, not the mixture cost itself.
+
+Report total nats, total bits/bytes/KB/MB where useful, and coding ratio against a stated baseline. Coding ratio is `baseline_cost / model_cost`, so higher is better and the value is invariant to log base. Against the uniform-byte baseline it equals the ideal compression ratio. When comparing schedulers, compare causal prequential cost at matched compute budgets and account for replay/search work.
 
 ## Baselines
 
@@ -13,7 +15,8 @@ The initial benchmark objective is **total prequential coding cost on the same r
 - For future binary synthetic tests: fair-coin and Beta-Bernoulli predictors with the prior stated explicitly.
 - Short context/Markov predictors with a declared smoothing rule.
 - Exact finite mixture over the identical model class and prior, wherever tractable.
-- Best individual in-class model in hindsight as a labeled diagnostic, never an online competitor.
+- Best individual in-class model in hindsight as an explicitly labeled oracle diagnostic, never a KRAFT/online competitor.
+- Candidate data cost plus negative log prior as a certified upper bound on exact mixture cost when applicable; never relabel it as measured mixture cost.
 - For scheduling: exhaustive order, round robin, posterior-mass priority, and posterior-per-cost priority under identical accounting.
 
 ## Measurements

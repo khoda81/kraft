@@ -3,13 +3,14 @@
 Start with the [byte harness](harness.md) to run the current code. Read these in order for a complete handoff:
 
 1. [Status](status.md): what exists, what has been tested, and the immediate next step.
-2. [Theory](theory.md): the project question and mathematical commitments.
-3. [Decisions](decisions.md): accepted direction, provisional choices, and open decisions.
-4. [Architecture](architecture.md): implementation boundaries and the CPU-to-GPU path.
-5. [Methodology](methodology.md): how evidence will be collected and compared.
-6. [Experiments](experiments/README.md): ordered hypotheses and success gates.
-7. [Queue](queue.md): actionable work and dependencies.
-8. [Research log](research-log.md): dated history, including negative results.
+2. [Prequential objective](prequential.md): the canonical KRAFT score and causal coding contract.
+3. [Theory](theory.md): priors, inference bounds, DFA mathematics, and research scope.
+4. [Decisions](decisions.md): accepted direction, provisional choices, and open decisions.
+5. [Architecture](architecture.md): implementation boundaries for the anytime Bayesian learner.
+6. [Methodology](methodology.md): how evidence will be collected and compared.
+7. [Experiments](experiments/README.md): ordered hypotheses and success gates.
+8. [Queue](queue.md): actionable work and dependencies.
+9. [Research log](research-log.md): dated history, including negative results.
 
 [References](references.md) tracks background reading. Use the [experiment template](templates/experiment.md) for each run campaign.
 

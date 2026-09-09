@@ -1,36 +1,77 @@
-# Architecture proposal
+# Architecture
 
-The [byte harness](harness.md), generic model/distribution traits, two baselines, and numerical helper are implemented. The boundaries below describe the future finite-model mixture/search system; they do not block running the harness.
+KRAFT separates the **Bayesian model** from the **inference policy**. The model is defined independently of how much compute is available; finite compute controls only how accurately and how quickly the online Bayesian mixture is approximated.
 
-## CPU reference
+The canonical coding semantics are in [prequential.md](prequential.md).
+
+## Core boundaries
 
 | Boundary | Responsibility | Invariants |
 | --- | --- | --- |
-| Model / codec | Enumerate descriptions, transition tables, and priors | Stable model identity; explicit coding measure |
-| Predictor state | State transitions and probabilistic emissions | Predict before observing; deterministic replay |
-| Mixture | Log posterior updates and predictive marginalization | Normalized probabilities; no scheduler penalty in posterior |
-| Search frontier | Enumerate/admit hypotheses and bound omitted mass | No overlap in subtree bounds; explicit coverage |
-| Scheduler | Allocate evaluation work under a budget | Every evaluated/replayed symbol is charged |
-| Runner | Existing byte CLI runs baselines; generators/manifests remain planned | Same byte streams across comparisons |
+| Hypothesis language / prior | Define model descriptions and their proper prior | Search settings never change which hypotheses exist |
+| Fixed predictor | Causal state transition and local predictive learning | `predict` uses only the observed prefix; `observe` happens after scoring |
+| Bayesian mixture | Posterior reweighting and predictive marginalization | Prior belongs to inference; no separately transmitted model |
+| Hypothesis region | Represent a disjoint subset of descriptions with known prior mass | Refinement preserves total prior mass exactly |
+| Evidence bounds | Bound a region's contribution to the mixture | Valid refinement never loses unresolved mass |
+| Search frontier | Store unresolved Bayesian mass and partial evaluations | Dormant regions retain their mass; they are not discarded |
+| Scheduler | Choose which region/evaluation receives the next unit of compute | Scheduling changes speed, not the Bayesian target |
+| Observation store | Permit exact replay for late-activated hypotheses | Replayed state equals causal state from the full prefix |
+| Runner / harness | Measure online coding and compute | No future-data-selected structure is counted as an online prediction |
 
-Begin with direct scalar enumeration and transparent data structures. Avoid a large trait hierarchy until two actual implementations need one. A learned proposal distribution is a later experiment, not a replacement for the first exhaustive reference.
+## Mathematical target
 
-## Finite-state semantics to settle in Q1
+For descriptions `h` with prior `pi(h)` and causal fixed-model probabilities `P_h`, KRAFT targets
 
-A candidate starting convention is: at time `t`, a state emits a probability for the next binary symbol; after the symbol is revealed, update its emission posterior (if learned) and transition using the observed symbol. A transition table alone is not a probabilistic predictor. Decide whether emissions are a fixed finite grid or integrated Beta-Bernoulli parameters. Specify whether state visits/emission counts are part of mutable inference state rather than description length.
+```math
+M(x_{1:T})=\sum_h \pi(h)P_h(x_{1:T}),
+```
 
-Specify the initial state, reset boundaries, and whether descriptions include all states or only reachable ones. Implement explicit operation counts independently of wall-clock timing.
+whose prequential coding cost is
 
-## GPU migration constraints
+```math
+-\ln M(x_{1:T})
+=
+-\sum_t \ln M(x_t\mid x_{<t}).
+```
 
-- Store state and transition/emission data explicitly, with stable integer widths.
-- Keep model-level execution batchable; prefer contiguous buffers when profiling motivates them.
-- Separate host enumeration/scheduling from a future batched score/transition kernel.
-- Define overflow behavior and deterministic reduction tolerances before cross-backend comparisons.
-- Preserve the scalar `f64` reference for numerical validation; test any lower-precision path against it.
+The posterior is useful internal state; the predictive mixture is the product being coded.
 
-Do not select CUDA, wgpu, or another backend before E4 establishes where CPU time goes. Small irregular model sets may not amortize transfer/launch overhead; that is an empirical question.
+## Anytime inference
 
-## Late model admission
+An unresolved frontier node represents a disjoint region `R` of the hypothesis space and bounds its joint mixture contribution
 
-A newly discovered model needs likelihood and state for the entire observed prefix before receiving an exact posterior weight. Charge replay, or use a provably equivalent sufficient-state reconstruction. Predictions missed before admission cannot be retroactively counted as online predictions. Define deadlines and fallback predictions for exhausted compute budgets.
+```math
+L_R \le Z_R(x)=\sum_{h\in R}\pi(h)P_h(x) \le U_R.
+```
+
+Allowed refinement operations are:
+
+1. **Partition:** replace `R` by disjoint children whose union is exactly `R` and whose prior masses sum exactly to the parent mass.
+2. **Tighten:** keep the same region and improve its likelihood/evidence bounds, for example by scoring a concrete model on more of the observed prefix.
+3. **Resolve:** compute `Z_R` exactly, whether by enumeration, dynamic programming, conjugacy, ADD/WMC, or another symbolic method.
+
+No model-space parameter such as maximum state count, topology set, or maximum exception count should be an inference cutoff when the declared Bayesian family assigns nonzero mass beyond it. Resource knobs may control work budget, precision target, thread count, evaluation chunking, checkpoint cadence, or scheduling policy.
+
+## Causal compute-bounded prediction
+
+At byte `t`, the probability used by the codec may depend only on the fixed model/prior, the decoded prefix `x_<t`, deterministic inference state derived from that prefix, and the declared compute/precision policy.
+
+Searching the complete file and then replaying it with structures discovered from future bytes is allowed only as an oracle analysis. It is not a KRAFT prequential run.
+
+Late model/region activation therefore requires replay of the already observed prefix, or a proven equivalent sufficient-state reconstruction. Replay cost belongs to inference compute accounting.
+
+## Fixed-DFA evidence shortcut
+
+For a prespecified DFA with Dirichlet-1/2 state emissions, the deterministic causal trajectory partitions observations by state. Closed-form integrated Dirichlet evidence computed from the final state/byte counts is exactly equal to the product of sequential posterior-predictive probabilities. The optimized scorer may use this identity, but it must be regression-tested against the literal online evaluator.
+
+Choosing that DFA after inspecting the complete stream changes the interpretation: its negative log evidence becomes a hindsight/oracle diagnostic. Adding negative log prior gives a valid upper bound on the Bayesian-mixture cost.
+
+## Model-language direction
+
+The current sparse-DFA family is a useful finite-state description language, not the endpoint. Ordinary n-grams are already representable by finite automata, but shift-register context dynamics are extremely expensive under a literal or sparse-transition-table description. Future hypothesis languages should therefore reward **short transition programs** rather than only small extensional tables.
+
+A later language may include generated transition functions (shift registers, counters, latches, compositions) plus sparse overrides. State-local predictors may also be generalized beyond Dirichlet categoricals. Finite nested automata do not exceed finite-state computational power, but can provide exponentially shorter descriptions and useful parameter sharing; their Bayesian factorization is a separate research direction.
+
+## CPU/GPU constraints
+
+Keep a scalar `f64` reference and deterministic replay semantics. Optimize only behind regression tests that preserve prequential probabilities or exact joint evidence. Candidate models are independent enough for batched scoring, but individual DFA trajectories remain sequential in time; GPU work should follow measured bottlenecks rather than architecture preference.

@@ -2,11 +2,11 @@
 
 The byte harness is implemented and tested; B1 is **partially run**. The [initial enwik8 prefix record](B1-enwik8-baseline.md) captures two user-reported unigram runs with equal printed coding costs across Rust 1.85.0 and 1.98.1. Full-file uniform/unigram results and input metadata remain pending. See [harness](../harness.md) for commands and scoring rules.
 
-The finite-mixture campaigns below are also **planned, not run**; they remain a separate correctness/search track. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
+The fixed-N partial-DFA [E0 oracle](E0-partial-dfa-posterior.md), its [persistent-state follow-up](E0-persistent-dfa-state.md), and the exact N = 2 [symbolic evidence evaluator](E0-symbolic-dfa-wmc.md) are implemented. Symbolic evaluation reaches byte 46 on the measured enwik8 prefix; byte 64 remains an unmet gate. The broader synthetic E0 campaign and E1–E6 remain planned. Queue IDs are in the [work queue](../queue.md). Shared rules live in [methodology](../methodology.md); create a separate record from the [template](../templates/experiment.md) before execution.
 
 | ID | Question | Comparison / measurements | Gate |
 | --- | --- | --- | --- |
-| E0 | Is the finite-mixture implementation correct? | Hand-computed one-state examples; brute-force tiny binary transition families; batch marginal likelihood versus sequential prediction product | Agreement within declared `f64` tolerance; normalized predictions and correct timing |
+| E0 | Is the finite-mixture implementation correct? **Partially run:** exact byte-DFA oracle, state-label quotients, and persistent representation are validated; planned synthetic generators remain pending. | One-state identity, vector-oracle parity, exact quotient agreement, enwik8 prefix growth | Agreement within declared `f64` tolerance; normalized predictions and correct timing |
 | E1 | Does the description prior behave as specified? | Enumerated code lengths and Kraft sums; normalized finite prior; ordered search versus exhaustive posterior | Verify code injectivity/prefix-freeness or use an explicitly finite categorical prior; no accidental claim of a universal prior |
 | E2 | How much work is representation redundancy costing? | Labeled tables versus canonical representatives with summed original mass; count unreachable/equivalent structures | Preserve oracle predictions when preserving prior mass; quantify runtime/memory tradeoff |
 | E3 | Which scheduler best approximates the oracle at fixed compute? | Exhaustive/round-robin/mass/mass-per-cost; several geometric budgets; exact omitted mass, predictive loss, KL and certificate tightness | Valid certificates on every checked prefix; report quality-cost curves even if no scheduler wins |
@@ -31,3 +31,15 @@ Proposed short inputs: empty sequence, single symbols, all-zero/all-one, alterna
 Freeze the model family/prior from E0–E1. Compare schedulers without changing the target posterior. Use geometric compute budgets and paired streams; include the cost of catching up newly admitted models. Plot or tabulate prediction regret versus total work and end-to-end time. If studying `u/c` as a fixed prior, label that as a separate model-prior ablation, with its own exact reference.
 
 Do not declare success from a favorable average alone: inspect worst checked certificate violation (must be zero within tolerance), per-stream regressions, and whether the policy actually reaches useful tail bounds.
+
+## Recent heuristic/oracle campaigns
+
+- [E0g generated-state partition posterior](E0-generated-partition-dfa.md): exact causal variable-context family beats fixed-order KT references on frozen 100k/1M enwik8 prefixes; broader transition learning remains open.
+
+- [E0f anytime convergence diagnostic](E0-anytime-diagnostic.md): 1,000-byte evidence interval versus fixed-order contexts and an exposed-tail scheduling ablation. Exact-mixture bounds, not a streaming approximate-learner result.
+
+- [E0e sparse-DFA full-corpus search](E0-sparse-dfa-search.md): audited multi-fidelity beam search through `K=256`; candidate costs are hindsight/oracle diagnostics and single-model mixture bounds, not online KRAFT scores.
+
+## Dynamic prediction grouping
+
+- [E0h — Dynamic symbolic prediction groups](E0-dynamic-prediction-groups.md): exact merge/split behavior under the fixed-N prior, oracle comparisons, and measured symbolic overhead.

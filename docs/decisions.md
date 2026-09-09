@@ -16,8 +16,8 @@ Date of initial capture: 2026-09-06. Earlier direction is reconstructed from the
 
 ## Open decisions
 
-- O1: transition convention, emissions, start state, model bounds, and parameter priors.
-- O2: actual self-delimiting code and model-length prior; how finite truncation is normalized.
+- O1: **Resolved by D018/D019 for the current byte models.** Predict before observe; fixed DFA starts in state 0; state emissions are Dirichlet-1/2 integrated predictors. Future model languages may reopen their own emission semantics.
+- O2: proper description priors for each declared model language; finite inference must not silently renormalize away nonzero prior support.
 - O3: labeled descriptions versus canonicalized models with aggregated prior mass.
 - O4: multiply-shift formula, word width, overflow, state range, and structural capacity.
 - O5: scheduling cost unit and policy; whether fixed speed-weighted priors merit a separate comparison.
@@ -60,3 +60,75 @@ The user's commit 3c6d09f removed rust-toolchain.toml after D011. CI therefore t
 **Accepted:** use Rust 1.98.1 everywhere for active development instead of retaining Rust 1.85 as a compatibility target. `Cargo.toml` now declares `rust-version = "1.98.1"`, `rust-toolchain.toml` pins 1.98.1 with rustfmt and Clippy, and CI tests the pinned toolchain plus current stable.
 
 This supersedes D014 and the compatibility portion of D011. Historical experiment records that happened to use Rust 1.85 remain historical evidence and are not rewritten.
+
+## 2026-09-06 — D016: persistent histories preserve the exact fixed-N posterior
+
+**Accepted for the exact oracle:** represent transition assignments and emission observations as immutable parent-linked nodes in append-only `u32`-indexed arenas. A posterior component stores history heads, lengths, semantic fingerprints, the current logical state, and the logical-to-storage state mapping. Branch children append only their new information and share the parent's physical history.
+
+Arena node identity is not model identity. Compact fingerprints accelerate component-map lookup, but collisions are resolved by exact logical transition and emission-content comparison. Predictive state canonicalization reorders logical state mappings without rewriting historical arena nodes. Linear history lookup is accepted for the current short-prefix oracle; a cache requires measured justification.
+
+This changes representation and diagnostics only. It does not change the conditional uniform transition prior, Dirichlet-1/2 emission law, prequential order, quotient semantics, posterior masses, or epsilon-retention calculation. Persistent emissions were included after a transition-only byte-22 measurement showed that cloned emission vectors had become the dominant estimated payload. No pruning or weighted decision DAG is part of this decision.
+
+## 2026-09-06 — D017: exact N = 2 joint evidence by ADD weighted model counting
+
+**Accepted as a second oracle:** for N = 2, treat each encountered transition-table destination as a uniform Boolean variable and represent the hidden state, sufficient emission counts, and integrated log likelihood as reduced ordered algebraic decision diagrams. Average the final likelihood function over its Boolean decisions to obtain exact joint evidence. This is the same labeled transition-table prior as the leaf oracle: variables irrelevant to a trajectory reduce away, reproducing the `2^(-m(s))` transition-constraint weight.
+
+The new evaluator computes joint evidence and cumulative coding cost only; it does not replace the leaf engine when posterior components or sequential predictive distributions are required. Complete-table enumeration and leaf-oracle agreement are mandatory regressions. Node guards and garbage collection manage representation resources but do not prune model mass.
+
+Use discovery quotient as the default leaf-oracle mode. Retain predictive quotient as an explicit option and regression test because it preserves evidence but showed no component reduction and added runtime on the measured prefix. For the ADD prototype, retain first-seen byte-pair variable ordering until variable-order experiments provide evidence for a replacement.
+
+## 2026-09-07 — D018: causal prequential coding is the primary KRAFT score
+
+**Accepted:** KRAFT is evaluated as an online codec. For every observation, form the predictive distribution from the already observed/decoded prefix, score the symbol, then update. The primary score is cumulative prequential coding cost. A structure selected using the whole evaluation stream and then scored on that same stream is a hindsight/oracle diagnostic, not the online score of the structure-learning algorithm.
+
+Optimized batch evidence calculations are permitted only when proven equivalent to the literal causal `predict -> score -> observe` product for a prespecified model. The generic evaluator remains the semantic reference.
+
+## 2026-09-07 — D019: Bayesian prior complexity is paid through prediction, not separate transmission
+
+**Accepted:** KRAFT's actual model is the Bayesian mixture `M(x)=sum_h pi(h) P_h(x)`. Encoder and decoder share the prior and update it causally; no selected model description is transmitted after training. The KRAFT code length is `-ln M(x)`, equivalently the sum of online mixture log losses.
+
+For any fixed candidate `h`, `-ln P_h(x) - ln pi(h)` is a valid single-hypothesis upper bound on the Bayesian-mixture code and has an MDL/two-part form. When one posterior mode dominates, Bayesian prequential cost approaches that value. The prior term is therefore an inference/model-identification penalty, not an extra payload added to the measured mixture code.
+
+## 2026-09-07 — D020: model-space choices are latent; resource choices are inference knobs
+
+**Accepted direction for the rewrite:** quantities that change which hypotheses exist or their prior probability belong inside the Bayesian model. For sparse DFAs this includes state count `N`, default topology, exception count `K`, exception keys, and destinations. Finite compute should determine only which unresolved mass is refined and how tight the current approximation/certificate is.
+
+Hard search cutoffs such as `--states ...` and `--max-exceptions ...` remain valid for historical/oracle experiments but are not acceptable as the semantics of the eventual KRAFT mixture when the declared prior gives omitted structures nonzero mass.
+
+## 2026-09-07 — D021: transition descriptions should reward short generators
+
+**Accepted research direction:** a general DFA is expressive enough to represent fixed-order n-grams, but the present sparse-transition description makes shift-register context machines extremely expensive. Future model languages should assign short descriptions to generated transition functions such as shift registers, counters, latches, and compositions, with optional sparse overrides, rather than special-casing only literal transition tables. Recursive state-local predictors remain a separate extension.
+
+## 2026-09-07 — D022: keep rewrite code minimal and invariant-driven
+
+**Accepted:** keep the inference/model core compact and readable. Internal invariants should be expressed through types, ownership, private construction, and narrow APIs rather than repeated runtime validation of states produced only by KRAFT itself. Defensive checks remain appropriate at external-input boundaries.
+
+The rewrite may make breaking or nuclear internal changes when they remove duplicated logic, stale abstractions, or semantic ambiguity. Readability and line count matter as engineering constraints, provided mathematical correctness and measured performance are preserved.
+
+## 2026-09-08 — D023: distinguish mass coverage from certificate convergence
+
+The unbounded sparse prior remains the Bayesian target, but covering its mass does not establish arbitrarily tight convergence. The current large-state representation permanently retains a universal likelihood bound above 65,535 states. Treat symbolic tail reasoning as unfinished research, and distinguish mathematically valid bound formulas from rigorous numerical enclosures. Diagnostics can identify where upper mass and work accumulate; a source audit alone does not establish which mechanism dominates runtime or certificate stagnation.
+
+## 2026-09-08 — D024: test exposed tail mass as scheduling utility only
+
+An experimental policy ranks state-count and exception-count tail actions by the upper mass of the next exact count exposed. It discounts mass that the immediate action leaves in another tail; it is a heuristic, not posterior reweighting or a proven value-of-computation rule. Keep largest-upper-mass scheduling as default: E0f finds slight interval improvement at equal refinements but increased elapsed time, insufficient evidence to promote the alternative.
+
+## 2026-09-08 — D025: generated-state partition posterior as a new model family
+
+Implement the generated-transition direction with a generic finite-state feature interface and exact Bayesian stop/split emission partitions. The first constructor is byte history. This makes common context dynamics cheap and shares statistics through latent emission groups. Maximum feature depth defines an explicitly finite prior; it must not be described as an approximation to the unbounded sparse prior. Emission tying is a changed modeling assumption, and the full generator state retains transition memory even when emissions share a group. Keep the original sparse family available. Report the causal posterior against fixed-order contexts, then investigate non-context constructors and matched smoothing controls rather than claiming arbitrary transition learning from a history-only result.
+
+## 2026-09-09 — D026: dynamic predictive sharing with preserved alternatives
+
+**User-directed:** share computation between posterior hypotheses whose full
+next-symbol distributions agree; split them after observations when they diverge,
+and allow later merging. Agreement now does not authorize deleting transition
+memory or tying previously independent emission parameters. Aggregate prior and
+posterior mass must be preserved.
+
+The first implementation is an opt-in exact fixed-N DFA backend using reduced
+multi-way decision diagrams, canonical rational prediction vectors, and symbolic
+weight projection. It operates on shared functions rather than enumerating a
+component list to group after the fact. This is a representation experiment under
+the existing fixed-N prior, not a replacement of the unbounded target in D020.
+Resource limits return an error without consuming the failed observation or
+pruning mass. General predictive-resolution approximation remains future work.

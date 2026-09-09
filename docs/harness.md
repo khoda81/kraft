@@ -1,6 +1,6 @@
 # Byte coding harness
 
-The first benchmark objective is total prequential coding cost on a local text file. The user requested WikiText; the supplied local paths identify enwik8/enwik9. These names must remain distinct in result records. The harness accepts either as raw bytes and does not fetch datasets.
+The benchmark objective is total causal prequential coding cost on a local text file. See [prequential.md](prequential.md) for the canonical distinction between a fixed-model score, a hindsight/oracle score, and KRAFT's Bayesian-mixture score. The user requested WikiText; the supplied local paths identify enwik8/enwik9. These names must remain distinct in result records. The harness accepts either as raw bytes and does not fetch datasets.
 
 ## Interface
 
@@ -17,21 +17,30 @@ pub trait Model<T> {
 
 The traits are generic; file evaluation requires `Model<u8>`. A prediction may borrow the model. For each byte the harness calls `predict`, evaluates `ln_prob`, drops the prediction, records the cost, then calls `observe`. There is no update before scoring, tokenization, UTF-8 decoding, newline normalization, BOS/EOS insertion, warm-up exclusion, or implicit reset. Invalid UTF-8 bytes are valid observations too. File order and bytes define the benchmark.
 
-The primary objective is `sum_t -ln P(x_t | x_<t)`, in nats. The report also converts to total bits and reports the coding ratio against uniform, defined as `uniform_cost / model_cost`. Higher is better: uniform is 1, values above 1 beat uniform, and values below 1 are worse. Because it is a ratio of coding costs, the value is invariant to log base. Against uniform it is the ideal compression ratio for the fixed byte stream. All bytes, including the first, are scored. This is ideal coding length, not an actual compressed-file size; no arithmetic coder or EOF/length encoding is implemented.
+The primary objective is `sum_t -ln P(x_t | x_<t)`, in nats. For KRAFT itself, `P` must be the online Bayesian-mixture prediction produced from the decoded prefix and the declared inference policy. A fixed structure selected using future bytes may be analyzed with the same evaluator, but that result is an oracle diagnostic rather than KRAFT's prequential coding cost. The report also converts to total bits and reports the coding ratio against uniform, defined as `uniform_cost / model_cost`. Higher is better: uniform is 1, values above 1 beat uniform, and values below 1 are worse. Because it is a ratio of coding costs, the value is invariant to log base. Against uniform it is the ideal compression ratio for the fixed byte stream. All bytes, including the first, are scored. This is ideal coding length, not an actual compressed-file size; no arithmetic coder or EOF/length encoding is implemented.
 
 ## Run
+
+KRAFT has one executable with `eval`, `infer`, `search`, and `verify` command groups. Input is the optional positional argument immediately after the model/family name. If it is omitted, or is `-`, KRAFT reads raw bytes from stdin.
 
 From the repository root, after `git pull --ff-only`:
 
 ```sh
-cargo run --release -- ../text-preq-encoding/preq-encoding/data/enwik/enwik8 --limit 1000000
+cargo run --release -- eval kt ../text-preq-encoding/preq-encoding/data/enwik/enwik8 --limit 1000000
 ```
 
-Remove `--limit` to evaluate the full file. Use `--model uniform` for the eight-bits-per-byte sanity baseline; default `kt` is an adaptive byte unigram with a symmetric Dirichlet-1/2 prior over all 256 byte values. It starts uniform and predicts `(count[byte] + 1/2) / (observed_bytes + 128)`. Both baselines are deterministic and start fresh in each CLI invocation.
+The same run can be piped without naming an input file:
+
+```sh
+head -c 1000000 ../text-preq-encoding/preq-encoding/data/enwik/enwik8 |
+  cargo run --release -- eval kt
+```
+
+Remove `--limit` to evaluate the full stream. Use `eval uniform` for the uniform sanity baseline; `eval kt` is an adaptive byte unigram with a symmetric Dirichlet-1/2 prior over all 256 byte values. It starts uniform and predicts `(count[byte] + 1/2) / (observed_bytes + 128)`. Both baselines are deterministic and start fresh in each CLI invocation.
 
 ```sh
 mkdir -p artifacts/enwik8
-cargo run --release -- path/to/enwik8 --model kt --costs artifacts/enwik8/costs.csv
+cargo run --release -- eval kt path/to/enwik8 --costs artifacts/enwik8/costs.csv
 ```
 
 `--costs` writes `byte_offset,cost_nats` rows with zero-based offsets. It creates a new file and refuses to overwrite an existing path, including the dataset itself. The parent directory must exist. Per-byte text output can be large and slow; leave it off when only the total is needed. Errors return nonzero; any already-written cost file is partial and must not be treated as a completed run.
@@ -62,6 +71,74 @@ Use `evaluate(reader, &mut model)` for totals only. Pass `Read::take(limit)` to 
 
 ## Evidence and next run
 
-Correctness checks cover analytic uniform and unigram sequence probabilities, normalization, strict call ordering, borrowed predictions, raw bytes/UTF-8, prefix limits, continued state, empty input, zero probability, invalid probability values, and I/O failure propagation. CLI smoke checks exercise prefix limits and refusal to overwrite files.
+Correctness checks cover analytic uniform and unigram sequence probabilities, normalization, strict call ordering, borrowed predictions, raw bytes/UTF-8, prefix limits, continued state, empty input, zero probability, invalid probability values, and I/O failure propagation. Optimized joint-evidence shortcuts for structured models must additionally regress against a literal `predict -> score -> observe` implementation. CLI smoke checks exercise prefix limits and refusal to overwrite files.
 
 The user has supplied two unigram runs on the first million bytes of local enwik8; see the [B1 record](experiments/B1-enwik8-baseline.md) for the results and missing metadata. No corpus run was performed in the agent environment. Record the code revision, exact input name/hash, command, evaluated prefix length, model, compiler/hardware, and output for subsequent benchmarks. The CLI currently prints a plain-text summary; automatic manifests, dataset hashing, and experiment tracking remain future runner work.
+
+## Sparse-DFA anytime certificate experiment
+
+The rewrite has a runnable certificate engine for the full declared sparse-DFA prior:
+
+```bash
+cargo run --release --locked -- infer sparse-dfa \
+  path/to/enwik8 \
+  --limit 8 \
+  --steps 10000 \
+  --report-every 1000
+```
+
+It reports lower/upper bounds on the exact Bayesian mixture prequential cost of the supplied prefix. The current unresolved-region likelihood upper bound is deliberately conservative, so start with short prefixes while validating refinement behavior. This command is not yet the bounded-compute streaming codec: it certifies the exact target `-ln M(prefix)` after seeing the prefix rather than emitting an approximate causal probability before each byte.
+
+## Anytime convergence diagnostics
+
+Run the same prefix and budget with detailed reporting:
+
+```sh
+cargo run --release --locked -- infer sparse-dfa \
+  ../text-preq-encoding/preq-encoding/data/enwik/enwik8 \
+  --limit 1000 --steps 100000 --report-every 1000 --diagnostics
+```
+
+The main stdout table reports code endpoints and gap in nats to nine decimal places, coding ratios, gains since the previous report, and gap reduction per refinement and per search second. Decimal output is diagnostic precision, not a floating-point error certificate. `NA` means undefined (including initial rates, empty-input ratios, or rates across an infinite initial gap).
+
+Detailed stderr tables report each unresolved region category's count, log upper mass, share of summed unresolved upper bounds, mean forced-prefix bytes, upper-mass-weighted mean forced-prefix bytes, and cumulative refinements. A forced prefix includes the emission immediately before the first undecided transition. Upper shares are **not posterior probabilities**. Compare shares with refinement counts: many refinements with persistently high upper mass and short forced prefixes suggest insufficient bound tightening.
+
+`bound_scan_bytes` counts cumulative bytes visited by likelihood-bound evaluations, including root initialization and repeated replay; it excludes transition-only ambiguity scans and suffix preprocessing. `work_s` measures only the last search batch. `elapsed_s` starts before input loading and includes setup and earlier reporting, so reporting overhead is not hidden in total runtime. Reporting still scans the frontier; use a larger report interval for throughput measurements.
+
+A separate table format replaces the old compact interval columns. The command stops when its budget is reached or no refinable regions remain; any opaque mass is still included in the final bounds.
+
+`--exposed-tail-priority` enables an experimental scheduler: state-count and exception-count tails are ranked by the upper mass of the next exact-count child they expose. This changes scheduling utility only; all Bayesian region masses and bounds remain intact. The default still ranks full upper mass. In the [first diagnostic](experiments/E0-anytime-diagnostic.md), the alternative tightened slightly per refinement but took more time, so it is not a recommended throughput optimization.
+
+## Causal generated-state partition posterior
+
+```sh
+cargo run --release --locked -- eval partition-dfa \
+  ../text-preq-encoding/preq-encoding/data/enwik/enwik8 --limit 1000000 --depth 8
+```
+
+This command uses the shared `predict -> score -> observe` evaluator. It reports total nats, bits per byte, joint log evidence, allocated nodes, node updates, and elapsed seconds. `--depth` defines the finite byte-history partition prior, not a compute truncation of the sparse-DFA model. Root stop/split choices are marginalized exactly; all logs are natural. The state starts padded with symbol 256. [Theory](theory.md#generated-dfa-states-with-bayesian-emission-partitions) and [E0g](experiments/E0-generated-partition-dfa.md) explain parameter sharing and interpretation.
+
+## Dynamic symbolic prediction groups
+
+`kraft infer dfa-grouped [INPUT] --states N` runs the exact fixed-N labeled DFA
+prior with shared next-byte predictions and symbolic transition alternatives.
+Omitted input or `-` streams raw bytes directly from stdin. The new backend is
+opt-in; `infer dfa-fixed` continues to run the original canonical leaf oracle.
+
+```sh
+printf 'abacaba' | cargo run --release --locked -- infer dfa-grouped --states 3 --compare-oracle
+```
+
+`--limit` bounds input bytes; `--report-every` controls diagnostic rows.
+`--max-nodes` bounds both decision-diagram nodes and interned count-vector entries.
+It stops with an error rather than pruning or consuming the failed byte.
+`--compare-oracle` checks observed predictions and prefix evidence against the
+original posterior; `--max-oracle-components` bounds prospective oracle work.
+
+The output separates prediction groups and likelihood evaluations from count
+updates, symbolic operation visits, projection visits and timings. Likelihood
+and count-update counters cover successful observations; diagram visits include
+failed attempts. Model timings include prediction, updates, and any collection;
+formatting is excluded. Count-vector storage currently retains historical interned
+entries. Total cost uses nats, with higher-is-better uniform coding ratio.
+This is a fixed-N inference experiment, not an unbounded posterior certificate.
