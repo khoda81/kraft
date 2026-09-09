@@ -1,8 +1,11 @@
 # Work queue
 
-Updated: 2026-09-07. Work from the first unblocked item. Historical experiment records remain authoritative for completed campaigns.
+Updated: 2026-09-09. Work from the first unblocked item. Historical experiment records remain authoritative for completed campaigns.
 
 ## Now
+
+- [x] P1 — Implement exact dynamic prediction groups with symbolic transition alternatives, full-vector equality, causal updates and independent oracle checks (D026, [E0h](experiments/E0-dynamic-prediction-groups.md)).
+- [ ] P2 — Reduce symbolic maintenance overhead: E0h saved likelihood evaluations but was slower overall. Investigate state-label redundancy and finer count/weight factorization before introducing approximate predictive regions or claiming scalable inference.
 
 - [x] P0 — Lock the causal prequential evaluation contract and Bayesian-mixture/MDL interpretation. Canonical definition: [prequential objective](prequential.md).
 - [x] S0 — Implement and analyze sparse-DFA heuristic search, optimized dense scoring, multi-fidelity prefilter, audit, checkpoint output, and compressed artifact bundles.

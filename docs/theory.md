@@ -337,3 +337,26 @@ The first implemented generated-state extension uses a deterministic finite-stat
 Let `L(v)` be the integrated emission evidence of every byte emitted under feature prefix `v`. Exact partition evidence satisfies `W(v) = (L(v) + product_c W(vc))/2` internally and `W(v) = L(v)` at terminal depth. Unvisited subtrees have unit evidence, so only visited prefixes need storage. This sums all partition descriptions under a normalized finite prior. The predictive distribution is the posterior mixture of stopping at the node and the selected child's prediction. Each observation updates only the current feature path, then advances the deterministic program; this delivers a reusable causal posterior and the joint/prequential identity without replay.
 
 The initial program is a byte shift register padded with a start symbol. It implements a Bayesian variable-context family with tied emissions and a declared maximum depth. The generic inference engine does not depend on that constructor. This is a new model prior, not a convergence fix or a truncation of the sparse default/override prior. [E0g](experiments/E0-generated-partition-dfa.md) measures the initial causal comparison; non-context generators and stronger smoothing controls remain research work.
+
+## Dynamic prediction groups
+
+Hypotheses with an identical whole next-byte distribution can share one likelihood
+calculation: `sum_h w_h p(b) = (sum_h w_h) p(b)`. Conditioning on that byte leaves
+their within-group weight ratios unchanged. Their internal transition and emission
+statistics must still be preserved because the following predictions may differ.
+Agreement on only the observed symbol is insufficient for a shared causal predictor.
+
+The grouped fixed-N backend represents current state, state-local count vectors,
+and log likelihood as reduced multi-way decision diagrams over independent
+uniform transition destinations. It maps active count vectors to canonical
+rational probability vectors and integrates the weight diagram over each such
+prediction region. Constant-output regions can therefore share likelihood work
+without enumerating the models they contain. Distinct count totals with equal
+normalized probabilities remain distinct underneath the prediction grouping, so
+later updates can separate them correctly.
+
+This is exact marginalization under the original fixed-N prior, up to ordinary
+floating-point likelihood arithmetic. Prediction equality uses integer ratios,
+not a tolerance. Diagram width and posterior correlations can still grow
+exponentially. No predictive approximation or discarded-mass bound is claimed.
+See [E0h](experiments/E0-dynamic-prediction-groups.md).

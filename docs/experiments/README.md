@@ -39,3 +39,7 @@ Do not declare success from a favorable average alone: inspect worst checked cer
 - [E0f anytime convergence diagnostic](E0-anytime-diagnostic.md): 1,000-byte evidence interval versus fixed-order contexts and an exposed-tail scheduling ablation. Exact-mixture bounds, not a streaming approximate-learner result.
 
 - [E0e sparse-DFA full-corpus search](E0-sparse-dfa-search.md): audited multi-fidelity beam search through `K=256`; candidate costs are hindsight/oracle diagnostics and single-model mixture bounds, not online KRAFT scores.
+
+## Dynamic prediction grouping
+
+- [E0h — Dynamic symbolic prediction groups](E0-dynamic-prediction-groups.md): exact merge/split behavior under the fixed-N prior, oracle comparisons, and measured symbolic overhead.

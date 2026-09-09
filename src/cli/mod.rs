@@ -5,6 +5,7 @@ mod dfa_posterior;
 mod dfa_wmc;
 mod ngram_fit;
 mod partition_dfa;
+mod predictive_dfa;
 mod sparse_dfa_anytime;
 mod sparse_dfa_fit;
 
@@ -45,6 +46,7 @@ Bayesian inference:
   kraft infer dfa [INPUT] [--max-states N ...]
   kraft infer dfa-prior [INPUT] [--max-states N ...]
   kraft infer dfa-fixed [INPUT] --states N [...]
+  kraft infer dfa-grouped [INPUT] [--states N] [--compare-oracle ...]
   kraft infer sparse-dfa [INPUT] [anytime options]
 
 Hindsight/oracle search:
@@ -119,6 +121,7 @@ fn run(args: Vec<OsString>) -> io::Result<()> {
                 delegated(rest, dfa_bayes::command)
             }
         }
+        ("infer", "dfa-grouped") => predictive_dfa::command(rest),
         ("infer", "dfa-prior") => delegated(rest, dfa_bayes::command),
         ("infer", "dfa-fixed") => delegated(rest, dfa_posterior::command),
         ("infer", "sparse-dfa" | "sparse") => delegated(rest, sparse_dfa_anytime::command),

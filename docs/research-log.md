@@ -186,3 +186,22 @@ Implemented a generic finite-state feature interface, byte-history generator, an
 [E0g](experiments/E0-generated-partition-dfa.md) froze depth eight and both enwik8 prefixes before running. At 100k bytes the posterior beats the best fixed-order KT reference by 5000.119189 nats (1.781%); at 1M bytes it beats it by 118382.516111 nats (4.912%). Prediction-score totals agree with negative joint evidence to nine printed decimals. Timings were 0.208 and 2.523 seconds; all node updates are counted, and no replay/search occurs. Startup conventions differ and stronger smoothing controls remain necessary.
 
 Validated normalized predictions, depth-zero KT identity, all five partitions of a binary depth-two generator, joint/prequential equality, and chunk continuation. Formatting, clippy with warnings denied, and all locked tests pass. This is meaningful causal coding progress but not full-corpus superiority or an arbitrary learned DFA transition posterior.
+
+
+## 2026-09-09 — Dynamic exact prediction groups
+
+Implemented the user-requested merge-now/split-later representation (D026) as an
+opt-in fixed-N symbolic posterior. Reduced multi-way decision diagrams preserve
+state/transition/count alternatives; exact rational next-byte vectors share
+likelihood updates. Added direct stdin CLI, original-oracle comparison, operation
+counters, garbage collection and transactional resource-limit errors.
+
+[E0h](experiments/E0-dynamic-prediction-groups.md) records all 18 short runs. All
+predictions and evidence match within 1.421e-13 nats. In the three-state text case,
+likelihood work fell 17.6-fold, but symbolic maintenance increased median runtime
+about 42-fold. This demonstrates exact sharing, not an end-to-end speedup or an
+unbounded posterior. Keep the old backend and prioritize symbolic overhead (P2).
+
+95 tests, formatting, clippy with warnings denied, and documentation links pass
+on available Rust 1.91.1 with `--ignore-rust-version`. The repository's 1.98.1
+pin is unchanged; that compiler was unavailable for local validation.

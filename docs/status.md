@@ -1,7 +1,24 @@
 # Current status
 
-Updated: 2026-09-07 (UTC).
+Updated: 2026-09-09 (UTC).
  
+## Latest measured progress (2026-09-09)
+
+An opt-in exact fixed-N posterior now shares identical next-byte predictions while
+retaining transition alternatives symbolically, so groups can split and merge as
+data arrive (`infer dfa-grouped`, D026). It preserves the original fixed-N prior
+and does not introduce emission tying or prune posterior mass. Budget exhaustion
+leaves the failed observation unconsumed.
+
+[E0h](experiments/E0-dynamic-prediction-groups.md) validates equality against the
+canonical leaf oracle. For three states and `the cat sa`, 13,892 final oracle
+components become 284 prediction groups; update likelihood evaluations fall from
+9,340 to 531. Symbolic maintenance still makes this prototype slower overall
+(556.988 versus 13.134 ms median in three runs). Next investigate that overhead
+before adding approximate predictive regions. This is not an unbounded-state
+posterior or a claimed speedup. Local checks passed on available Rust 1.91.1 with
+`--ignore-rust-version`; the 1.98.1 repository pin remains unchanged and untested here.
+
 ## Latest measured progress (2026-09-08)
 
 A new generated-state emission-partition posterior now implements causal `Model<u8>` with exact finite-family inference and no replay. With a frozen eight-byte-history generator it achieves 275720.910 nats on 100k enwik8 bytes and 2291568.906 nats on 1M bytes, improving on the best tested fixed-order KT n-gram by 1.781% and 4.912%, respectively. [E0g](experiments/E0-generated-partition-dfa.md) records the full comparison, prior, tests, and hashes.

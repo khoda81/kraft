@@ -117,3 +117,28 @@ cargo run --release --locked -- eval partition-dfa \
 ```
 
 This command uses the shared `predict -> score -> observe` evaluator. It reports total nats, bits per byte, joint log evidence, allocated nodes, node updates, and elapsed seconds. `--depth` defines the finite byte-history partition prior, not a compute truncation of the sparse-DFA model. Root stop/split choices are marginalized exactly; all logs are natural. The state starts padded with symbol 256. [Theory](theory.md#generated-dfa-states-with-bayesian-emission-partitions) and [E0g](experiments/E0-generated-partition-dfa.md) explain parameter sharing and interpretation.
+
+## Dynamic symbolic prediction groups
+
+`kraft infer dfa-grouped [INPUT] --states N` runs the exact fixed-N labeled DFA
+prior with shared next-byte predictions and symbolic transition alternatives.
+Omitted input or `-` streams raw bytes directly from stdin. The new backend is
+opt-in; `infer dfa-fixed` continues to run the original canonical leaf oracle.
+
+```sh
+printf 'abacaba' | cargo run --release --locked -- infer dfa-grouped --states 3 --compare-oracle
+```
+
+`--limit` bounds input bytes; `--report-every` controls diagnostic rows.
+`--max-nodes` bounds both decision-diagram nodes and interned count-vector entries.
+It stops with an error rather than pruning or consuming the failed byte.
+`--compare-oracle` checks observed predictions and prefix evidence against the
+original posterior; `--max-oracle-components` bounds prospective oracle work.
+
+The output separates prediction groups and likelihood evaluations from count
+updates, symbolic operation visits, projection visits and timings. Likelihood
+and count-update counters cover successful observations; diagram visits include
+failed attempts. Model timings include prediction, updates, and any collection;
+formatting is excluded. Count-vector storage currently retains historical interned
+entries. Total cost uses nats, with higher-is-better uniform coding ratio.
+This is a fixed-N inference experiment, not an unbounded posterior certificate.

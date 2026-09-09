@@ -116,3 +116,19 @@ An experimental policy ranks state-count and exception-count tail actions by the
 ## 2026-09-08 — D025: generated-state partition posterior as a new model family
 
 Implement the generated-transition direction with a generic finite-state feature interface and exact Bayesian stop/split emission partitions. The first constructor is byte history. This makes common context dynamics cheap and shares statistics through latent emission groups. Maximum feature depth defines an explicitly finite prior; it must not be described as an approximation to the unbounded sparse prior. Emission tying is a changed modeling assumption, and the full generator state retains transition memory even when emissions share a group. Keep the original sparse family available. Report the causal posterior against fixed-order contexts, then investigate non-context constructors and matched smoothing controls rather than claiming arbitrary transition learning from a history-only result.
+
+## 2026-09-09 — D026: dynamic predictive sharing with preserved alternatives
+
+**User-directed:** share computation between posterior hypotheses whose full
+next-symbol distributions agree; split them after observations when they diverge,
+and allow later merging. Agreement now does not authorize deleting transition
+memory or tying previously independent emission parameters. Aggregate prior and
+posterior mass must be preserved.
+
+The first implementation is an opt-in exact fixed-N DFA backend using reduced
+multi-way decision diagrams, canonical rational prediction vectors, and symbolic
+weight projection. It operates on shared functions rather than enumerating a
+component list to group after the fact. This is a representation experiment under
+the existing fixed-N prior, not a replacement of the unbounded target in D020.
+Resource limits return an error without consuming the failed observation or
+pruning mass. General predictive-resolution approximation remains future work.

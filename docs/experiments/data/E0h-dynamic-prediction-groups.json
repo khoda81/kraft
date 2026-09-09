@@ -1,0 +1,443 @@
+{
+  "platform": "Linux-6.18.35-x86_64-with-glibc2.39",
+  "results": [
+    {
+      "states": 2,
+      "input": "abababababab",
+      "sha256": "43218caa080cb52b913ed120b7e76f18d4a2550920656e62c3244db8388d8f7d",
+      "runs": [
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "12",
+            "states": "2",
+            "groups": "7",
+            "nodes": "603",
+            "count_vectors": "36",
+            "likelihood_evaluations": "67",
+            "count_updates": "67",
+            "diagram_visits": "1064",
+            "projection_visits": "168",
+            "total_nats": "49.045891342282",
+            "coding_ratio_uniform": "1.356731981",
+            "oracle_components": "8",
+            "oracle_likelihood_evaluations": "77",
+            "max_oracle_error_nats": "7.105e-15",
+            "symbolic_s": "0.000452",
+            "oracle_s": "0.000034"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "12",
+            "states": "2",
+            "groups": "7",
+            "nodes": "603",
+            "count_vectors": "36",
+            "likelihood_evaluations": "67",
+            "count_updates": "67",
+            "diagram_visits": "1064",
+            "projection_visits": "168",
+            "total_nats": "49.045891342282",
+            "coding_ratio_uniform": "1.356731981",
+            "oracle_components": "8",
+            "oracle_likelihood_evaluations": "77",
+            "max_oracle_error_nats": "7.105e-15",
+            "symbolic_s": "0.000382",
+            "oracle_s": "0.000031"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "12",
+            "states": "2",
+            "groups": "7",
+            "nodes": "603",
+            "count_vectors": "36",
+            "likelihood_evaluations": "67",
+            "count_updates": "67",
+            "diagram_visits": "1064",
+            "projection_visits": "168",
+            "total_nats": "49.045891342282",
+            "coding_ratio_uniform": "1.356731981",
+            "oracle_components": "8",
+            "oracle_likelihood_evaluations": "77",
+            "max_oracle_error_nats": "7.105e-15",
+            "symbolic_s": "0.000446",
+            "oracle_s": "0.000029"
+          }
+        }
+      ]
+    },
+    {
+      "states": 2,
+      "input": "the cat sa",
+      "sha256": "2cfbae7e2f8cf35b0780e2d2ffc49f6f14887df168f4184031944991179efcda",
+      "runs": [
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "10",
+            "states": "2",
+            "groups": "192",
+            "nodes": "5949",
+            "count_vectors": "288",
+            "likelihood_evaluations": "431",
+            "count_updates": "431",
+            "diagram_visits": "8035",
+            "projection_visits": "2042",
+            "total_nats": "53.557572305111",
+            "coding_ratio_uniform": "1.035367588",
+            "oracle_components": "432",
+            "oracle_likelihood_evaluations": "655",
+            "max_oracle_error_nats": "4.263e-14",
+            "symbolic_s": "0.003420",
+            "oracle_s": "0.000321"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "10",
+            "states": "2",
+            "groups": "192",
+            "nodes": "5949",
+            "count_vectors": "288",
+            "likelihood_evaluations": "431",
+            "count_updates": "431",
+            "diagram_visits": "8035",
+            "projection_visits": "2042",
+            "total_nats": "53.557572305111",
+            "coding_ratio_uniform": "1.035367588",
+            "oracle_components": "432",
+            "oracle_likelihood_evaluations": "655",
+            "max_oracle_error_nats": "4.263e-14",
+            "symbolic_s": "0.003510",
+            "oracle_s": "0.000330"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "10",
+            "states": "2",
+            "groups": "192",
+            "nodes": "5949",
+            "count_vectors": "288",
+            "likelihood_evaluations": "431",
+            "count_updates": "431",
+            "diagram_visits": "8035",
+            "projection_visits": "2042",
+            "total_nats": "53.557572305111",
+            "coding_ratio_uniform": "1.035367588",
+            "oracle_components": "432",
+            "oracle_likelihood_evaluations": "655",
+            "max_oracle_error_nats": "4.974e-14",
+            "symbolic_s": "0.004018",
+            "oracle_s": "0.000318"
+          }
+        }
+      ]
+    },
+    {
+      "states": 2,
+      "input": "abacaba",
+      "sha256": "510a1c5d1c0f51fe1bca026934f9dd6e4f8c3e0833705a81859b00cca2a35d31",
+      "runs": [
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "7",
+            "states": "2",
+            "groups": "9",
+            "nodes": "495",
+            "count_vectors": "22",
+            "likelihood_evaluations": "41",
+            "count_updates": "41",
+            "diagram_visits": "744",
+            "projection_visits": "136",
+            "total_nats": "34.321781169662",
+            "coding_ratio_uniform": "1.130950690",
+            "oracle_components": "18",
+            "oracle_likelihood_evaluations": "57",
+            "max_oracle_error_nats": "7.105e-15",
+            "symbolic_s": "0.000296",
+            "oracle_s": "0.000024"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "7",
+            "states": "2",
+            "groups": "9",
+            "nodes": "495",
+            "count_vectors": "22",
+            "likelihood_evaluations": "41",
+            "count_updates": "41",
+            "diagram_visits": "744",
+            "projection_visits": "136",
+            "total_nats": "34.321781169662",
+            "coding_ratio_uniform": "1.130950690",
+            "oracle_components": "18",
+            "oracle_likelihood_evaluations": "57",
+            "max_oracle_error_nats": "7.105e-15",
+            "symbolic_s": "0.000304",
+            "oracle_s": "0.000025"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "7",
+            "states": "2",
+            "groups": "9",
+            "nodes": "495",
+            "count_vectors": "22",
+            "likelihood_evaluations": "41",
+            "count_updates": "41",
+            "diagram_visits": "744",
+            "projection_visits": "136",
+            "total_nats": "34.321781169662",
+            "coding_ratio_uniform": "1.130950690",
+            "oracle_components": "18",
+            "oracle_likelihood_evaluations": "57",
+            "max_oracle_error_nats": "2.132e-14",
+            "symbolic_s": "0.000285",
+            "oracle_s": "0.000024"
+          }
+        }
+      ]
+    },
+    {
+      "states": 3,
+      "input": "abababababab",
+      "sha256": "43218caa080cb52b913ed120b7e76f18d4a2550920656e62c3244db8388d8f7d",
+      "runs": [
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "12",
+            "states": "3",
+            "groups": "16",
+            "nodes": "6738",
+            "count_vectors": "36",
+            "likelihood_evaluations": "105",
+            "count_updates": "105",
+            "diagram_visits": "10217",
+            "projection_visits": "1341",
+            "total_nats": "49.390823757126",
+            "coding_ratio_uniform": "1.347256925",
+            "oracle_components": "47",
+            "oracle_likelihood_evaluations": "359",
+            "max_oracle_error_nats": "2.842e-14",
+            "symbolic_s": "0.006128",
+            "oracle_s": "0.000254"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "12",
+            "states": "3",
+            "groups": "16",
+            "nodes": "6738",
+            "count_vectors": "36",
+            "likelihood_evaluations": "105",
+            "count_updates": "105",
+            "diagram_visits": "10217",
+            "projection_visits": "1341",
+            "total_nats": "49.390823757126",
+            "coding_ratio_uniform": "1.347256925",
+            "oracle_components": "47",
+            "oracle_likelihood_evaluations": "359",
+            "max_oracle_error_nats": "2.842e-14",
+            "symbolic_s": "0.005669",
+            "oracle_s": "0.000169"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "12",
+            "states": "3",
+            "groups": "16",
+            "nodes": "6738",
+            "count_vectors": "36",
+            "likelihood_evaluations": "105",
+            "count_updates": "105",
+            "diagram_visits": "10217",
+            "projection_visits": "1341",
+            "total_nats": "49.390823757126",
+            "coding_ratio_uniform": "1.347256925",
+            "oracle_components": "47",
+            "oracle_likelihood_evaluations": "359",
+            "max_oracle_error_nats": "2.842e-14",
+            "symbolic_s": "0.009327",
+            "oracle_s": "0.000284"
+          }
+        }
+      ]
+    },
+    {
+      "states": 3,
+      "input": "the cat sa",
+      "sha256": "2cfbae7e2f8cf35b0780e2d2ffc49f6f14887df168f4184031944991179efcda",
+      "runs": [
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "10",
+            "states": "3",
+            "groups": "284",
+            "nodes": "384105",
+            "count_vectors": "352",
+            "likelihood_evaluations": "531",
+            "count_updates": "531",
+            "diagram_visits": "496287",
+            "projection_visits": "153292",
+            "total_nats": "54.047990878263",
+            "coding_ratio_uniform": "1.025972909",
+            "oracle_components": "13892",
+            "oracle_likelihood_evaluations": "9340",
+            "max_oracle_error_nats": "1.350e-13",
+            "symbolic_s": "0.556988",
+            "oracle_s": "0.013413"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "10",
+            "states": "3",
+            "groups": "284",
+            "nodes": "384105",
+            "count_vectors": "352",
+            "likelihood_evaluations": "531",
+            "count_updates": "531",
+            "diagram_visits": "496287",
+            "projection_visits": "153292",
+            "total_nats": "54.047990878263",
+            "coding_ratio_uniform": "1.025972909",
+            "oracle_components": "13892",
+            "oracle_likelihood_evaluations": "9340",
+            "max_oracle_error_nats": "6.395e-14",
+            "symbolic_s": "0.505240",
+            "oracle_s": "0.009244"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "10",
+            "states": "3",
+            "groups": "284",
+            "nodes": "384105",
+            "count_vectors": "352",
+            "likelihood_evaluations": "531",
+            "count_updates": "531",
+            "diagram_visits": "496287",
+            "projection_visits": "153292",
+            "total_nats": "54.047990878263",
+            "coding_ratio_uniform": "1.025972909",
+            "oracle_components": "13892",
+            "oracle_likelihood_evaluations": "9340",
+            "max_oracle_error_nats": "1.421e-13",
+            "symbolic_s": "0.615550",
+            "oracle_s": "0.013134"
+          }
+        }
+      ]
+    },
+    {
+      "states": 3,
+      "input": "abacaba",
+      "sha256": "510a1c5d1c0f51fe1bca026934f9dd6e4f8c3e0833705a81859b00cca2a35d31",
+      "runs": [
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "7",
+            "states": "3",
+            "groups": "17",
+            "nodes": "5134",
+            "count_vectors": "24",
+            "likelihood_evaluations": "50",
+            "count_updates": "50",
+            "diagram_visits": "8104",
+            "projection_visits": "1263",
+            "total_nats": "34.964096171558",
+            "coding_ratio_uniform": "1.110174332",
+            "oracle_components": "140",
+            "oracle_likelihood_evaluations": "223",
+            "max_oracle_error_nats": "2.132e-14",
+            "symbolic_s": "0.004395",
+            "oracle_s": "0.000127"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "7",
+            "states": "3",
+            "groups": "17",
+            "nodes": "5134",
+            "count_vectors": "24",
+            "likelihood_evaluations": "50",
+            "count_updates": "50",
+            "diagram_visits": "8104",
+            "projection_visits": "1263",
+            "total_nats": "34.964096171558",
+            "coding_ratio_uniform": "1.110174332",
+            "oracle_components": "140",
+            "oracle_likelihood_evaluations": "223",
+            "max_oracle_error_nats": "2.842e-14",
+            "symbolic_s": "0.004397",
+            "oracle_s": "0.000122"
+          }
+        },
+        {
+          "exit_code": 0,
+          "stderr": "",
+          "row": {
+            "bytes": "7",
+            "states": "3",
+            "groups": "17",
+            "nodes": "5134",
+            "count_vectors": "24",
+            "likelihood_evaluations": "50",
+            "count_updates": "50",
+            "diagram_visits": "8104",
+            "projection_visits": "1263",
+            "total_nats": "34.964096171558",
+            "coding_ratio_uniform": "1.110174332",
+            "oracle_components": "140",
+            "oracle_likelihood_evaluations": "223",
+            "max_oracle_error_nats": "1.421e-14",
+            "symbolic_s": "0.004054",
+            "oracle_s": "0.000118"
+          }
+        }
+      ]
+    }
+  ]
+}
